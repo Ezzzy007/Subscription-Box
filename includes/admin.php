@@ -10,6 +10,7 @@ function sbt_tabs() {
 		'tiles'    => 'Category tiles',
 		'carousel' => 'Carousels',
 		'listings' => 'Vendor listings',
+		'disc'     => 'Discontinued',
 		'tweaks'   => 'Site tweaks',
 		'updates'  => 'Updates',
 	);
@@ -24,6 +25,7 @@ function sbt_tab_keys( $tab ) {
 		'carousel' => array( 'popular_cat', 'exclude_cats' ),
 		'listings' => array( 'listing_limits', 'listing_button', 'listing_max_mb', 'modules' ),
 		'tweaks'   => array( 'modules' ),
+		'disc'     => array( 'disc_upsells', 'disc_message', 'disc_link_text', 'disc_on_plan_end', 'modules' ),
 	);
 	return isset( $map[ $tab ] ) ? $map[ $tab ] : array();
 }
@@ -85,6 +87,10 @@ function sbt_sanitize( $input ) {
 				$clean[ sanitize_key( $plan ) ] = array( 'images' => max( 1, absint( $row['images'] ) ), 'cats' => absint( $row['cats'] ), 'order' => intval( $row['order'] ) );
 			}
 			$saved[ $k ] = $clean;
+		} elseif ( 'disc_upsells' === $k ) {
+			$saved[ $k ] = max( 1, min( 8, absint( $v ) ) );
+		} elseif ( 'disc_on_plan_end' === $k ) {
+			$saved[ $k ] = 'discontinue' === $v ? 'discontinue' : 'draft';
 		} elseif ( 'listing_max_mb' === $k ) {
 			$saved[ $k ] = max( 1, min( 50, absint( $v ) ) );
 		} elseif ( in_array( $k, array( 'plans', 'mkt' ), true ) ) {
@@ -110,7 +116,8 @@ function sbt_sanitize( $input ) {
 
 /** Module switches shown on each tab. */
 function sbt_tab_modules( $tab ) {
-	return 'listings' === $tab ? array( 'listings' ) : ( 'tweaks' === $tab ? array( 'price_guard', 'products_tidy' ) : array() );
+	$map = array( 'listings' => array( 'listings' ), 'tweaks' => array( 'price_guard', 'products_tidy' ), 'disc' => array( 'discontinue' ) );
+	return isset( $map[ $tab ] ) ? $map[ $tab ] : array();
 }
 
 function sbt_module_box( $key, $title, $desc, $s ) {
@@ -269,6 +276,13 @@ function sbt_tab_guide( $s ) {
 		'codes' => array(),
 		'what'  => 'No shortcode – runs by itself. Vendors set up and edit their listing at My Account → My Listing after buying a plan; you approve by email or in the "Vendor listing" box on the product edit screen.',
 		'edit'  => '<a href="' . esc_url( admin_url( 'admin.php?page=sb-toolkit&tab=listings' ) ) . '">Vendor listings</a> · <a href="' . esc_url( admin_url( 'tools.php?page=sbl-order' ) ) . '">Tools → Listing order</a>',
+	);
+	$items[] = array(
+		'title' => 'Discontinue a listing',
+		'tag'   => 'sbt_none',
+		'codes' => array(),
+		'what'  => 'No shortcode – a "Discontinue listing" box on each product edit screen, plus a bulk action on the products list. Keeps the page live, removes the vendor link, hides it from the shop and suggests similar boxes. Restorable.',
+		'edit'  => '<a href="' . esc_url( admin_url( 'admin.php?page=sb-toolkit&tab=disc' ) ) . '">Discontinued</a>',
 	);
 	foreach ( $items as $it ) {
 		?>
@@ -429,6 +443,24 @@ function sbt_tab_tweaks( $s ) {
 		<?php if ( function_exists( 'sbt_drop_labels' ) ) : ?>
 			<p class="sbt-bad">sb-site-tweaks.php is still in wp-content/mu-plugins, so these are running from that file instead. Delete it in FileZilla.</p>
 		<?php endif; ?>
+	</div>
+	<?php
+}
+
+function sbt_tab_disc( $s ) {
+	?>
+	<div class="sbt-card">
+		<?php sbt_module_box( 'discontinue', 'Discontinue button on', 'Adds a <strong>Discontinue listing</strong> box to every product edit screen and a <strong>Discontinue + upsells</strong> bulk action on Products → All Products. Discontinuing keeps the page live (Google and old links still work) but removes the link to the vendor, hides it from the shop and search, shows the message below and suggests similar boxes – same categories, paying plans first. Everything it changes is remembered, so <strong>Restore listing</strong> puts it back exactly as it was. Replaces discontinue-product.php and the Barn2 Discontinued Products plugin.', $s ); ?>
+	</div>
+	<div class="sbt-card">
+		<p><label class="inline">Similar boxes to suggest</label> <input type="number" min="1" max="8" style="width:70px" name="sbt_settings[disc_upsells]" value="<?php echo esc_attr( $s['disc_upsells'] ); ?>"></p>
+		<p><label class="inline">Message on the page</label> <input type="text" class="regular-text" name="sbt_settings[disc_message]" value="<?php echo esc_attr( $s['disc_message'] ); ?>"></p>
+		<p><label class="inline">Link to the suggestions</label> <input type="text" class="regular-text" name="sbt_settings[disc_link_text]" value="<?php echo esc_attr( $s['disc_link_text'] ); ?>"></p>
+		<p><label class="inline">When a listing plan ends</label>
+			<select name="sbt_settings[disc_on_plan_end]">
+				<option value="draft" <?php selected( $s['disc_on_plan_end'], 'draft' ); ?>>Hide it (draft + Cancelled category)</option>
+				<option value="discontinue" <?php selected( $s['disc_on_plan_end'], 'discontinue' ); ?>>Discontinue it (page stays live with suggestions + Cancelled category)</option>
+			</select><br><span class="sbt-muted">Either way it still waits until the paid period is over, you get the email, and it comes back by itself if they resubscribe.</span></p>
 	</div>
 	<?php
 }

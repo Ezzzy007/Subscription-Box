@@ -1290,12 +1290,19 @@ add_action( 'woocommerce_subscription_status_updated', function ( $sub, $new, $o
 		if ( 'publish' === $product->get_status() ) {
 			$product->update_meta_data( '_sbl_state_before_hide', $product->get_meta( '_sbl_state' ) );
 			$product->update_meta_data( '_sbl_state', 'hidden' );
-			$product->set_status( 'draft' );
+			$discontinue = function_exists( 'sbt_discontinue' ) && 'discontinue' === sbt_get( 'disc_on_plan_end' );
+			if ( ! $discontinue ) {
+				$product->set_status( 'draft' );
+			}
 			$cancelled = sbl_category_id( SBL_CANCELLED_CAT, 'Cancelled', sbl_admin_parent() ? sbl_admin_parent()->slug : '' );
 			if ( $cancelled ) {
 				$product->set_category_ids( array_values( array_unique( array_merge( $product->get_category_ids(), array( $cancelled ) ) ) ) );
 			}
 			$product->save();
+			if ( $discontinue ) {
+				sbt_discontinue( $product->get_id(), 'Plan ' . $new . ' (subscription #' . $sub->get_id() . ')' );
+				$product = wc_get_product( $product->get_id() );
+			}
 			sbl_notify_admin( $product, 'hidden', $sub );
 		}
 	} elseif ( 'pending-cancel' === $new ) {
@@ -1306,6 +1313,10 @@ add_action( 'woocommerce_subscription_status_updated', function ( $sub, $new, $o
 		$product->set_category_ids( array_values( array_diff( $product->get_category_ids(), array( sbl_category_id( SBL_CANCELLED_CAT ) ) ) ) );
 		$product->set_status( 'publish' );
 		$product->save();
+		if ( function_exists( 'sbt_undiscontinue' ) && $product->get_meta( '_sbt_disc_prev' ) ) {
+			sbt_undiscontinue( $product->get_id() );
+			$product = wc_get_product( $product->get_id() );
+		}
 		sbl_notify_admin( $product, 'restored', $sub );
 	}
 }, 10, 3 );

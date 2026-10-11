@@ -1,2 +1,2 @@
-- New "Update now from GitHub" button (SB Toolkit → Updates): checks GitHub and installs the newest version in one click.
-- Notice with an Update now button on the Dashboard, Plugins and SB Toolkit pages when a new version is out.
+- New: Discontinue listing box on every product edit screen (and a bulk action). Keeps the page live, removes the vendor link, hides it from the shop and search, shows "This box is no longer available" and suggests similar boxes (same categories, paying plans first). Restore puts it back exactly as it was. Replaces discontinue-product.php and the Barn2 Discontinued Products plugin.
+- New setting: when a listing plan ends, either hide the listing (as now) or discontinue it so the page stays live with suggestions.

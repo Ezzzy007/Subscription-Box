@@ -46,8 +46,12 @@ function sbt_defaults() {
 		),
 		'listing_button'    => 'Subscribe To Box',
 		'listing_max_mb'    => 5,
+		'disc_upsells'      => 3,
+		'disc_message'      => 'This box is no longer available.',
+		'disc_link_text'    => 'See similar boxes',
+		'disc_on_plan_end'  => 'draft',
 		'gh_repo'           => 'Ezzzy007/Subscription-Box',
-		'modules'           => array( 'listings' => 1, 'price_guard' => 1, 'products_tidy' => 1 ),
+		'modules'           => array( 'listings' => 1, 'price_guard' => 1, 'products_tidy' => 1, 'discontinue' => 1 ),
 	);
 }
 
