@@ -48,6 +48,12 @@ function sbt_gh_latest( $force = false ) {
 	}
 	$code = wp_remote_retrieve_response_code( $res );
 	$body = json_decode( wp_remote_retrieve_body( $res ), true );
+	if ( in_array( $code, array( 401, 403, 404 ), true ) ) {
+		$public = sbt_gh_latest_public( $repo ); // token expired or not needed – try the public way
+		if ( ! is_wp_error( $public ) ) {
+			return $public;
+		}
+	}
 	if ( 200 !== $code || ! is_array( $body ) ) {
 		$msg = 404 === $code ? 'Repository or release not found (for a private repo, check the token).' : 'GitHub said ' . $code . ( isset( $body['message'] ) ? ': ' . $body['message'] : '' );
 		// Remember the failure briefly so a bad token doesn't hit GitHub on every admin page.
@@ -68,7 +74,7 @@ function sbt_gh_latest( $force = false ) {
 		'html_url'  => (string) ( isset( $body['html_url'] ) ? $body['html_url'] : '' ),
 		'published' => (string) ( isset( $body['published_at'] ) ? $body['published_at'] : '' ),
 	);
-	set_site_transient( 'sbt_gh_latest', $out, 6 * HOUR_IN_SECONDS );
+	set_site_transient( 'sbt_gh_latest', $out, HOUR_IN_SECONDS );
 	return $out;
 }
 
@@ -96,7 +102,7 @@ function sbt_gh_latest_public( $repo ) {
 		'html_url'  => $to,
 		'published' => '',
 	);
-	set_site_transient( 'sbt_gh_latest', $out, 6 * HOUR_IN_SECONDS );
+	set_site_transient( 'sbt_gh_latest', $out, HOUR_IN_SECONDS );
 	return $out;
 }
 
@@ -291,7 +297,7 @@ add_action( 'admin_post_sbt_updates', function () {
 } );
 
 function sbt_tab_updates( $s ) {
-	$rel   = sbt_gh_latest();
+	$rel   = sbt_gh_latest( true ); // always fresh on this page
 	$token = sbt_gh_token();
 	$file  = plugin_basename( SBT_FILE );
 	$auto  = in_array( $file, (array) get_site_option( 'auto_update_plugins', array() ), true );
