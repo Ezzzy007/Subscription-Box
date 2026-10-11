@@ -6,7 +6,8 @@ defined( 'ABSPATH' ) || exit;
  * [sb_products] – product carousel (replaces WooCommerce Product Carousel Slider Pro).
  *   [sb_products cat="slider" limit="8" orderby="rand" autoplay="2.3"]   top "slider" carousel
  *   [sb_products limit="10"]                                             recently added boxes
- *   Atts: cat (category slug, blank = all), limit, orderby (date|rand|menu_order|title),
+ *   [sb_products featured="yes" limit="8" orderby="rand" autoplay="2.3"] featured boxes (Extreme listings are featured automatically)
+ *   Atts: cat (category slug, blank = all), featured (yes = featured products only), limit, orderby (date|rand|menu_order|title),
  *         show (visible cards on desktop, default 6), autoplay (seconds, 0 = off).
  *   Always skips drafts, hidden products and the Cancelled / Plans categories.
  * [sb_posts] – latest posts grid (replaces Content Views).
@@ -18,7 +19,7 @@ function sb_strip_popular_slug() {
 }
 
 add_shortcode( 'sb_products', function ( $atts = array() ) {
-	$atts = shortcode_atts( array( 'cat' => '', 'limit' => 10, 'orderby' => 'date', 'show' => 6, 'autoplay' => 0, 'exclude' => implode( ',', sbt_slugs( sbt_get( 'exclude_cats' ) ) ) ), $atts, 'sb_products' );
+	$atts = shortcode_atts( array( 'cat' => '', 'featured' => '', 'limit' => 10, 'orderby' => 'date', 'show' => 6, 'autoplay' => 0, 'exclude' => implode( ',', sbt_slugs( sbt_get( 'exclude_cats' ) ) ) ), $atts, 'sb_products' );
 	if ( ! function_exists( 'wc_get_product' ) ) {
 		return '';
 	}
@@ -30,6 +31,9 @@ add_shortcode( 'sb_products', function ( $atts = array() ) {
 	if ( $exclude ) {
 		$tax[] = array( 'taxonomy' => 'product_cat', 'field' => 'slug', 'terms' => $exclude, 'operator' => 'NOT IN', 'include_children' => true );
 	}
+	if ( in_array( strtolower( (string) $atts['featured'] ), array( '1', 'yes', 'true' ), true ) ) {
+		$tax[] = array( 'taxonomy' => 'product_visibility', 'field' => 'name', 'terms' => array( 'featured' ) );
+	}
 	if ( '' !== trim( (string) $atts['cat'] ) ) {
 		$tax[] = array( 'taxonomy' => 'product_cat', 'field' => 'slug', 'terms' => array_map( 'sanitize_title', explode( ',', $atts['cat'] ) ) );
 	}
@@ -37,10 +41,11 @@ add_shortcode( 'sb_products', function ( $atts = array() ) {
 	$ids     = get_posts( array(
 		'post_type'        => 'product',
 		'post_status'      => 'publish',
-		'posts_per_page'   => max( 1, min( 30, (int) $atts['limit'] ) ),
+		'posts_per_page'   => max( 1, min( 30, (int) $atts['limit'] ) ) + 5,
 		'orderby'          => 'menu_order' === $orderby ? array( 'menu_order' => 'ASC', 'date' => 'DESC' ) : $orderby,
 		'order'            => 'title' === $orderby ? 'ASC' : 'DESC',
 		'tax_query'        => $tax, // phpcs:ignore
+		'post__not_in'     => function_exists( 'sbnz_all_plan_ids' ) ? array_map( 'absint', sbnz_all_plan_ids() ) : array(),
 		'fields'           => 'ids',
 		'no_found_rows'    => true,
 		'suppress_filters' => false,
@@ -50,9 +55,15 @@ add_shortcode( 'sb_products', function ( $atts = array() ) {
 	}
 	$popular = sb_strip_popular_slug();
 	$cards   = array();
+	$max = max( 1, min( 30, (int) $atts['limit'] ) );
 	foreach ( $ids as $id ) {
+		if ( count( $cards ) >= $max ) {
+			break;
+		}
 		$p = wc_get_product( $id );
-		if ( ! $p ) {
+		// Only live, visible listings – never plan / subscription products or nameless leftovers.
+		if ( ! $p || 'publish' !== $p->get_status() || ! $p->is_visible() || '' === trim( $p->get_name() )
+			|| in_array( $p->get_type(), array( 'subscription', 'variable-subscription' ), true ) ) {
 			continue;
 		}
 		$url   = get_permalink( $id );
@@ -61,6 +72,9 @@ add_shortcode( 'sb_products', function ( $atts = array() ) {
 		$badge = has_term( $popular, 'product_cat', $id ) ? '<span class="sbp-badge">Popular!</span>' : '';
 		$cards[] = '<li class="sbp-card"><a href="' . esc_url( $url ) . '" title="' . esc_attr( $name ) . '"><span class="sbp-pic">' . $badge . $img . '</span>'
 			. '<span class="sbp-name">' . esc_html( $name ) . '</span><span class="sbp-price">' . wp_kses_post( $p->get_price_html() ) . '</span></a></li>';
+	}
+	if ( ! $cards ) {
+		return '';
 	}
 	$show = max( 2, min( 8, (int) $atts['show'] ) );
 	$auto = max( 0, (float) $atts['autoplay'] );

@@ -1,1 +1,2 @@
-- Discontinued pages: the "See similar boxes" link now jumps to the suggestions wherever the theme shows them (AU shows upsells next to the description).
+- Carousels: new featured="yes" option (Extreme listings are featured automatically) – use it for the NZ top carousel, which has no Slider category.
+- Carousels never show plan / subscription products (e.g. Box Swap Plan) or products without a name, even when logged in.

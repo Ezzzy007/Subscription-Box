@@ -258,8 +258,8 @@ function sbt_tab_guide( $s ) {
 		array(
 			'title' => 'Product carousel',
 			'tag'   => 'sb_products',
-			'codes' => array( '[sb_products cat="slider" limit="8" orderby="rand" autoplay="2.3"]', '[sb_products limit="10" show="7"]' ),
-			'what'  => 'First example: the top slider – boxes in the Slider category, random order, scrolls by itself every 2.3 seconds (pauses on hover/touch). Second: Recently Added Boxes – newest first, arrows only. Boxes in the Popular category get the yellow POPULAR! ribbon. Drafts, hidden products and the excluded categories (Cancelled, Plans) never show.<br><strong>Options:</strong> <code>cat</code> category slug(s) · <code>limit</code> how many · <code>orderby</code> date / rand / menu_order / title · <code>show</code> cards visible on desktop · <code>autoplay</code> seconds (0 = off).',
+			'codes' => array( '[sb_products cat="slider" limit="8" orderby="rand" autoplay="2.3"]', '[sb_products featured="yes" limit="8" orderby="rand" autoplay="2.3"]', '[sb_products limit="10" show="7"]' ),
+			'what'  => 'First example: the top slider – boxes in the Slider category, random order, scrolls by itself every 2.3 seconds (pauses on hover/touch). Second: Recently Added Boxes – newest first, arrows only. Boxes in the Popular category get the yellow POPULAR! ribbon. Drafts, hidden products and the excluded categories (Cancelled, Plans) never show.<br><strong>Options:</strong> <code>cat</code> category slug(s) · <code>featured="yes"</code> featured boxes only (Extreme listings are featured automatically – use this on NZ, which has no Slider category) · <code>limit</code> how many · <code>orderby</code> date / rand / menu_order / title · <code>show</code> cards visible on desktop · <code>autoplay</code> seconds (0 = off).',
 			'edit'  => '<a href="' . esc_url( admin_url( 'admin.php?page=sb-toolkit&tab=carousel' ) ) . '">Carousels</a>.' . ( $popular ? '' : ' <span class="sbt-bad">The Popular category slug isn\'t found – no ribbons will show.</span>' ),
 		),
 		array(
