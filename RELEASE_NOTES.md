@@ -1,2 +1,1 @@
-- Carousels: new featured="yes" option (Extreme listings are featured automatically) – use it for the NZ top carousel, which has no Slider category.
-- Carousels never show plan / subscription products (e.g. Box Swap Plan) or products without a name, even when logged in.
+- Update check is lighter: shorter timeout, a failed check is remembered for an hour, and it never runs on front-end page loads.

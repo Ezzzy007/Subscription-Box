@@ -42,8 +42,9 @@ function sbt_gh_latest( $force = false ) {
 	if ( ! sbt_gh_token() ) {
 		return sbt_gh_latest_public( $repo );
 	}
-	$res = wp_remote_get( 'https://api.github.com/repos/' . $repo . '/releases/latest', array( 'timeout' => 12, 'headers' => sbt_gh_headers() ) );
+	$res = wp_remote_get( 'https://api.github.com/repos/' . $repo . '/releases/latest', array( 'timeout' => 6, 'headers' => sbt_gh_headers() ) );
 	if ( is_wp_error( $res ) ) {
+		set_site_transient( 'sbt_gh_latest', array( 'repo' => $repo, 'error' => 'Could not reach GitHub: ' . $res->get_error_message() ), HOUR_IN_SECONDS );
 		return $res;
 	}
 	$code = wp_remote_retrieve_response_code( $res );
@@ -83,8 +84,9 @@ function sbt_gh_latest( $force = false ) {
  * …/releases/download/vX.Y.Z/sb-toolkit.zip. Doesn't use the GitHub API, so no rate limits on shared hosting.
  */
 function sbt_gh_latest_public( $repo ) {
-	$res = wp_remote_head( 'https://github.com/' . $repo . '/releases/latest', array( 'timeout' => 12, 'redirection' => 0, 'headers' => array( 'User-Agent' => 'sb-toolkit/' . SBT_VERSION ) ) );
+	$res = wp_remote_head( 'https://github.com/' . $repo . '/releases/latest', array( 'timeout' => 6, 'redirection' => 0, 'headers' => array( 'User-Agent' => 'sb-toolkit/' . SBT_VERSION ) ) );
 	if ( is_wp_error( $res ) ) {
+		set_site_transient( 'sbt_gh_latest', array( 'repo' => $repo, 'error' => 'Could not reach GitHub: ' . $res->get_error_message() ), HOUR_IN_SECONDS );
 		return $res;
 	}
 	$to = (string) wp_remote_retrieve_header( $res, 'location' );
@@ -108,7 +110,7 @@ function sbt_gh_latest_public( $repo ) {
 
 /** Tell WordPress about a newer release. */
 add_filter( 'pre_set_site_transient_update_plugins', function ( $transient ) {
-	if ( ! is_object( $transient ) || ! sbt_gh_repo() ) {
+	if ( ! is_object( $transient ) || ! sbt_gh_repo() || ( ! is_admin() && ! wp_doing_cron() && ! ( defined( 'WP_CLI' ) && WP_CLI ) ) ) {
 		return $transient;
 	}
 	$file = plugin_basename( SBT_FILE );
