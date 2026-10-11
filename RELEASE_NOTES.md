@@ -1,4 +1,2 @@
-- One plugin for everything: pricing tables, vendor listings, category tiles, carousels, latest posts grid and site fixes.
-- New wp-admin → SB Toolkit page with a guide, health checks and settings.
-- Fix: Premium/Extreme listings now go into the right Popular category on AU.
-- Updates itself from GitHub.
+- Updates now work from a public GitHub repository with no token (nothing to renew).
+- "Enable auto-updates" link always shows for this plugin on the Plugins page.

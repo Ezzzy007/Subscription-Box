@@ -39,6 +39,9 @@ function sbt_gh_latest( $force = false ) {
 	if ( ! $force && is_array( $cached ) && isset( $cached['repo'] ) && $cached['repo'] === $repo ) {
 		return $cached;
 	}
+	if ( ! sbt_gh_token() ) {
+		return sbt_gh_latest_public( $repo );
+	}
 	$res = wp_remote_get( 'https://api.github.com/repos/' . $repo . '/releases/latest', array( 'timeout' => 12, 'headers' => sbt_gh_headers() ) );
 	if ( is_wp_error( $res ) ) {
 		return $res;
@@ -69,16 +72,46 @@ function sbt_gh_latest( $force = false ) {
 	return $out;
 }
 
+/**
+ * Public repo, no token: github.com/…/releases/latest redirects to …/tag/vX.Y.Z, and the zip is at
+ * …/releases/download/vX.Y.Z/sb-toolkit.zip. Doesn't use the GitHub API, so no rate limits on shared hosting.
+ */
+function sbt_gh_latest_public( $repo ) {
+	$res = wp_remote_head( 'https://github.com/' . $repo . '/releases/latest', array( 'timeout' => 12, 'redirection' => 0, 'headers' => array( 'User-Agent' => 'sb-toolkit/' . SBT_VERSION ) ) );
+	if ( is_wp_error( $res ) ) {
+		return $res;
+	}
+	$to = (string) wp_remote_retrieve_header( $res, 'location' );
+	if ( ! preg_match( '#/releases/tag/v?([0-9][0-9.]*)$#', $to, $m ) ) {
+		$msg = 'No release found. If the repository is private, make it public or add a token.';
+		set_site_transient( 'sbt_gh_latest', array( 'repo' => $repo, 'error' => $msg ), HOUR_IN_SECONDS );
+		return new WP_Error( 'sbt_gh', $msg );
+	}
+	$tag = basename( wp_parse_url( $to, PHP_URL_PATH ) );
+	$out = array(
+		'repo'      => $repo,
+		'version'   => $m[1],
+		'asset'     => 'https://github.com/' . $repo . '/releases/download/' . rawurlencode( $tag ) . '/' . SBT_ASSET_NAME,
+		'notes'     => '',
+		'html_url'  => $to,
+		'published' => '',
+	);
+	set_site_transient( 'sbt_gh_latest', $out, 6 * HOUR_IN_SECONDS );
+	return $out;
+}
+
 /** Tell WordPress about a newer release. */
 add_filter( 'pre_set_site_transient_update_plugins', function ( $transient ) {
 	if ( ! is_object( $transient ) || ! sbt_gh_repo() ) {
 		return $transient;
 	}
-	$rel = sbt_gh_latest();
+	$file = plugin_basename( SBT_FILE );
+	$rel  = sbt_gh_latest();
 	if ( is_wp_error( $rel ) || ! empty( $rel['error'] ) || empty( $rel['asset'] ) ) {
+		// Still list the plugin so the "Enable auto-updates" link shows on the Plugins page.
+		$transient->no_update[ $file ] = (object) array( 'id' => $file, 'slug' => dirname( $file ), 'plugin' => $file, 'new_version' => SBT_VERSION, 'url' => '', 'package' => '' );
 		return $transient;
 	}
-	$file = plugin_basename( SBT_FILE );
 	$item = (object) array(
 		'id'          => $file,
 		'slug'        => dirname( $file ),
@@ -239,7 +272,7 @@ function sbt_tab_updates( $s ) {
 		<p><label class="inline">Access token</label>
 			<input type="password" class="regular-text" name="sbt_gh_token" value="" autocomplete="new-password" placeholder="<?php echo $token ? esc_attr( 'saved – ends …' . substr( $token, -4 ) ) : 'github_pat_…'; ?>">
 			<?php if ( $token ) : ?><label style="margin-left:10px"><input type="checkbox" name="sbt_gh_token_clear" value="1"> remove</label><?php endif; ?></p>
-		<p class="sbt-muted">Needed because the repository is private. Use a fine-grained token limited to this one repository with <strong>Contents: Read-only</strong> – it can't change anything. Leave blank to keep the saved one.</p>
+		<p class="sbt-muted">Only needed if the repository is private. With a public repository leave this empty – nothing to renew. For a private one use a fine-grained token limited to this repository with <strong>Contents: Read-only</strong>.</p>
 		<p><?php submit_button( 'Save & check for updates', 'primary', 'submit', false ); ?></p>
 	</form>
 	<?php
