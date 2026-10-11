@@ -53,12 +53,22 @@ add_action( 'woocommerce_single_product_summary', function () {
 		. '</div>';
 }, 25 );
 
-add_action( 'woocommerce_after_single_product_summary', function () {
-	global $product;
-	if ( sbt_is_discontinued( $product ) ) {
-		echo '<span id="sbt-similar"></span>';
+/** Anchor for the "See similar boxes" link, placed just above wherever the theme shows upsells. */
+add_action( 'wp', function () {
+	$anchor = function () {
+		global $product;
+		if ( sbt_is_discontinued( $product ) ) {
+			echo '<span id="sbt-similar"></span>';
+		}
+	};
+	$in_summary = has_action( 'woocommerce_single_product_summary', 'woocommerce_upsell_display' );
+	if ( false !== $in_summary ) {
+		add_action( 'woocommerce_single_product_summary', $anchor, max( 0, (int) $in_summary - 1 ) );
+	} else {
+		$after = has_action( 'woocommerce_after_single_product_summary', 'woocommerce_upsell_display' );
+		add_action( 'woocommerce_after_single_product_summary', $anchor, false !== $after ? max( 0, (int) $after - 1 ) : 14 );
 	}
-}, 14 ); // just before WooCommerce's upsells (15)
+} );
 
 /* --- Picking similar boxes --------------------------------------------------- */
 

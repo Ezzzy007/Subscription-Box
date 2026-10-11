@@ -1,2 +1,1 @@
-- SB Toolkit → Updates always checks GitHub fresh, and sites look for new versions every hour instead of every 6.
-- If a saved GitHub token stops working (expired), updates carry on without it as long as the repository is public.
+- Discontinued pages: the "See similar boxes" link now jumps to the suggestions wherever the theme shows them (AU shows upsells next to the description).
