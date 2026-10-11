@@ -1,0 +1,31 @@
+# Push a tag like v2.1.1 and this builds sb-toolkit.zip and publishes a GitHub release.
+# Both sites see the release under Plugins and (with auto-updates on) install it by themselves.
+name: Release
+on:
+  push:
+    tags: ['v*']
+permissions:
+  contents: write
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check version matches tag
+        run: |
+          TAG="${GITHUB_REF_NAME#v}"
+          grep -q "Version: ${TAG}$" sbnz-plans.php || { echo "Plugin header Version is not ${TAG}"; exit 1; }
+          grep -q "'SBT_VERSION', '${TAG}'" sbnz-plans.php || { echo "SBT_VERSION is not ${TAG}"; exit 1; }
+      - name: PHP syntax check
+        run: for f in sbnz-plans.php includes/*.php; do php -l "$f"; done
+      - name: Build zip
+        run: |
+          mkdir -p build/sbnz-plans
+          cp -r sbnz-plans.php includes build/sbnz-plans/
+          cd build && zip -qr ../sb-toolkit.zip sbnz-plans
+      - name: Publish release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: sb-toolkit.zip
+          generate_release_notes: false
+          body_path: ${{ github.workspace }}/RELEASE_NOTES.md

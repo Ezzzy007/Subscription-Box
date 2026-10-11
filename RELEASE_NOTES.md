@@ -1,0 +1,4 @@
+- One plugin for everything: pricing tables, vendor listings, category tiles, carousels, latest posts grid and site fixes.
+- New wp-admin → SB Toolkit page with a guide, health checks and settings.
+- Fix: Premium/Extreme listings now go into the right Popular category on AU.
+- Updates itself from GitHub.
