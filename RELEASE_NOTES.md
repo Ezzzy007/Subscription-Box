@@ -1,1 +1,4 @@
+- Carousels loop endlessly in both directions (arrows, autoplay and swiping) instead of rewinding to the start.
+- Discontinued listings: box details (Ships, Billed, Ships From…) are hidden, the Popular badge and the Popular / Slider categories come off, and links to the vendor's website and social media are removed from the page. Restore puts all of it back.
+- "Refresh" on an already-discontinued listing applies this to listings discontinued before this update.
 - Update check is lighter: shorter timeout, a failed check is remembered for an hour, and it never runs on front-end page loads.

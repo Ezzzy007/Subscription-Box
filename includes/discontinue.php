@@ -17,7 +17,11 @@ add_filter( 'woocommerce_product_stock_status_options', function ( $options ) {
 } );
 
 function sbt_is_discontinued( $product ) {
-	return $product && SBT_DISC_STATUS === $product->get_stock_status();
+	if ( ! $product instanceof WC_Product ) {
+		// Early in a page the global $product can still be the slug/ID – look it up instead of crashing.
+		$product = ( is_numeric( $product ) && $product ) ? wc_get_product( (int) $product ) : ( is_singular( 'product' ) ? wc_get_product( get_queried_object_id() ) : null );
+	}
+	return $product instanceof WC_Product && SBT_DISC_STATUS === $product->get_stock_status();
 }
 
 add_filter( 'woocommerce_product_is_in_stock', function ( $in, $product ) {
@@ -155,6 +159,84 @@ function sbt_disc_pick_upsells( $product_id, $n = 3 ) {
 
 /* --- Discontinue / restore ---------------------------------------------------- */
 
+/**
+ * Take off the "promote me" extras – Popular / Slider categories and the YITH badge – and remember
+ * them in _sbt_disc_prev so Restore puts them back. Safe to run again on an already-discontinued listing.
+ */
+function sbt_disc_strip_promo( $product ) {
+	$prev = $product->get_meta( '_sbt_disc_prev' );
+	$prev = is_array( $prev ) ? $prev : array();
+	$promo = array();
+	foreach ( array( sbt_get( 'popular_cat' ), 'slider' ) as $slug ) {
+		$t = get_term_by( 'slug', sanitize_title( $slug ), 'product_cat' );
+		if ( $t ) {
+			$promo[] = (int) $t->term_id;
+		}
+	}
+	$has     = array_map( 'intval', $product->get_category_ids() );
+	$removed = array_values( array_intersect( $has, $promo ) );
+	if ( $removed ) {
+		$product->set_category_ids( array_values( array_diff( $has, $removed ) ) );
+		$prev['cats_removed'] = array_values( array_unique( array_merge( isset( $prev['cats_removed'] ) ? (array) $prev['cats_removed'] : array(), $removed ) ) );
+	}
+	$badge = array();
+	foreach ( $product->get_meta_data() as $m ) {
+		$d = $m->get_data();
+		if ( 0 === strpos( $d['key'], '_yith_wcbm' ) ) {
+			$badge[ $d['key'] ] = $d['value'];
+		}
+	}
+	if ( $badge ) {
+		foreach ( array_keys( $badge ) as $k ) {
+			$product->delete_meta_data( $k );
+		}
+		$prev['badge_meta'] = array_merge( isset( $prev['badge_meta'] ) ? (array) $prev['badge_meta'] : array(), $badge );
+	}
+	if ( $prev ) {
+		$product->update_meta_data( '_sbt_disc_prev', $prev );
+	}
+}
+
+/* --- What a discontinued page shows -------------------------------------------- */
+
+/** No attributes table (Ships, Billed, Ships From…) – nothing to buy, so no point. */
+add_filter( 'woocommerce_display_product_attributes', function ( $attrs, $product ) {
+	return sbt_is_discontinued( $product ) ? array() : $attrs;
+}, 99, 2 );
+
+add_filter( 'woocommerce_product_tabs', function ( $tabs ) {
+	global $product;
+	if ( sbt_is_discontinued( $product ) ) {
+		unset( $tabs['additional_information'] );
+	}
+	return $tabs;
+}, 99 );
+
+/** No links to the vendor: off-site links become plain text, social icons go. */
+function sbt_disc_unlink( $html ) {
+	$home = (string) wp_parse_url( home_url(), PHP_URL_HOST );
+	return preg_replace_callback( '#<a\s[^>]*href=(["\'])(.*?)\1[^>]*>(.*?)</a>#is', function ( $m ) use ( $home ) {
+		$host = (string) wp_parse_url( html_entity_decode( $m[2] ), PHP_URL_HOST );
+		if ( '' === $host || $host === $home || 'www.' . $host === $home || 'www.' . $home === $host ) {
+			return $m[0]; // own site – keep
+		}
+		return preg_match( '#<img\s#i', $m[3] ) ? '' : $m[3];
+	}, (string) $html );
+}
+
+add_filter( 'woocommerce_short_description', function ( $html ) {
+	global $product;
+	return ( is_product() && sbt_is_discontinued( $product ) ) ? sbt_disc_unlink( $html ) : $html;
+}, 99 );
+
+add_filter( 'the_content', function ( $html ) {
+	if ( ! is_singular( 'product' ) || ! in_the_loop() ) {
+		return $html;
+	}
+	$p = wc_get_product( get_the_ID() );
+	return sbt_is_discontinued( $p ) ? sbt_disc_unlink( $html ) : $html;
+}, 99 );
+
 /** Forget WooCommerce's cached copy of a product after changing its type. */
 function sbt_disc_flush( $product_id ) {
 	wc_delete_product_transients( $product_id );
@@ -193,6 +275,7 @@ function sbt_discontinue( $product_id, $note = '' ) {
 		sbt_disc_flush( $product_id );
 		$product = wc_get_product( $product_id );
 	}
+	sbt_disc_strip_promo( $product );
 	$product->set_catalog_visibility( 'hidden' );
 	$product->set_featured( false );
 	if ( 'external' !== $product->get_type() ) {
@@ -236,6 +319,14 @@ function sbt_undiscontinue( $product_id ) {
 	$product->set_stock_status( $prev['stock_status'] && SBT_DISC_STATUS !== $prev['stock_status'] ? $prev['stock_status'] : 'instock' );
 	$product->set_upsell_ids( (array) $prev['upsells'] );
 	$product->set_featured( ! empty( $prev['featured'] ) );
+	if ( ! empty( $prev['cats_removed'] ) ) {
+		$product->set_category_ids( array_values( array_unique( array_merge( $product->get_category_ids(), array_map( 'intval', $prev['cats_removed'] ) ) ) ) );
+	}
+	if ( ! empty( $prev['badge_meta'] ) && is_array( $prev['badge_meta'] ) ) {
+		foreach ( $prev['badge_meta'] as $k => $v ) {
+			$product->update_meta_data( $k, $v );
+		}
+	}
 	$product->delete_meta_data( '_sbt_disc_prev' );
 	$product->delete_meta_data( '_sbt_disc_date' );
 	$product->delete_meta_data( '_sbt_disc_note' );
@@ -278,14 +369,14 @@ function sbt_disc_box( $post ) {
 		} else {
 			echo '<p class="description">No similar boxes found – add some under Product data → Linked Products → Upsells.</p>';
 		}
-		echo '<p><a class="button" href="' . esc_url( sbt_disc_action_url( 'reupsell', $post->ID ) ) . '">Pick new suggestions</a></p>';
+		echo '<p><a class="button" href="' . esc_url( sbt_disc_action_url( 'reupsell', $post->ID ) ) . '">Refresh (new suggestions)</a></p>';
 		if ( $product->get_meta( '_sbt_disc_prev' ) ) {
 			echo '<p><a class="button" href="' . esc_url( sbt_disc_action_url( 'restore', $post->ID ) ) . '" onclick="return confirm(\'Put this listing back exactly as it was before it was discontinued?\')">Restore listing</a></p>';
 		}
 		echo '<p><a href="' . esc_url( get_permalink( $post->ID ) ) . '" target="_blank">View page ↗</a></p>';
 		return;
 	}
-	echo '<p class="description">For a box that has closed or a vendor who has left: the page stays live (keeps its Google ranking), the link to the vendor is removed, it is hidden from the shop and search, shows "no longer available", and suggests ' . (int) sbt_get( 'disc_upsells' ) . ' similar boxes instead. You can restore it later.</p>';
+	echo '<p class="description">For a box that has closed or a vendor who has left: the page stays live (keeps its Google ranking), the link to the vendor and their social links are removed, the Popular badge and box details come off, it is hidden from the shop and search, shows "no longer available", and suggests ' . (int) sbt_get( 'disc_upsells' ) . ' similar boxes instead. You can restore it later.</p>';
 	echo '<p><a class="button button-primary" href="' . esc_url( sbt_disc_action_url( 'discontinue', $post->ID ) ) . '" onclick="return confirm(\'Discontinue this listing and suggest similar boxes?\')">Mark discontinued + upsells</a></p>';
 }
 
@@ -300,13 +391,8 @@ add_action( 'admin_post_sbt_disc', function () {
 	} elseif ( 'restore' === $do ) {
 		$r = sbt_undiscontinue( $id );
 	} elseif ( 'reupsell' === $do ) {
-		$p = wc_get_product( $id );
-		$u = sbt_disc_pick_upsells( $id, max( 1, (int) sbt_get( 'disc_upsells' ) ) );
-		if ( $p && $u ) {
-			$p->set_upsell_ids( $u );
-			$p->save();
-		}
-		$r = array( 'ok' => (bool) $u, 'msg' => $u ? 'New suggestions picked.' : 'No similar live boxes found.' );
+		$r        = sbt_discontinue( $id );
+		$r['msg'] = 'Refreshed – new suggestions picked, badge and Popular removed.';
 	} else {
 		wp_die( 'Unknown action.' );
 	}
