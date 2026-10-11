@@ -18,6 +18,6 @@ Guide and settings on each site: **wp-admin → SB Toolkit**.
 
 ## Releasing an update
 
-1. Change the code, bump `Version:` and `SBT_VERSION` in `sbnz-plans.php`, write `RELEASE_NOTES.md`.
-2. Commit, then tag and push: `git tag v2.1.1 && git push --tags`.
-3. The Release workflow builds `sb-toolkit.zip` and publishes the release. Sites pick it up within ~12 hours (or SB Toolkit → Updates → Save & check).
+1. Change the code, bump `Version:` and `SBT_VERSION` in `sbnz-plans.php` (must match), write `RELEASE_NOTES.md`.
+2. Commit and push to `main`.
+3. The Release workflow builds `sb-toolkit.zip` and publishes release `vX.Y.Z` (skipped if that version already exists). Sites pick it up within ~12 hours, or straight away with SB Toolkit → Updates → Save & check.

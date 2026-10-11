@@ -1,9 +1,11 @@
-# Push a tag like v2.1.1 and this builds sb-toolkit.zip and publishes a GitHub release.
-# Both sites see the release under Plugins and (with auto-updates on) install it by themselves.
+# Releases happen when the version in sbnz-plans.php changes on main:
+# bump "Version:" and SBT_VERSION, write RELEASE_NOTES.md, push to main.
+# This builds sb-toolkit.zip and publishes release vX.Y.Z. Both sites then see the update.
 name: Release
 on:
   push:
-    tags: ['v*']
+    branches: [main]
+  workflow_dispatch:
 permissions:
   contents: write
 jobs:
@@ -11,21 +13,34 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Check version matches tag
+      - name: Read version
+        id: v
         run: |
-          TAG="${GITHUB_REF_NAME#v}"
-          grep -q "Version: ${TAG}$" sbnz-plans.php || { echo "Plugin header Version is not ${TAG}"; exit 1; }
-          grep -q "'SBT_VERSION', '${TAG}'" sbnz-plans.php || { echo "SBT_VERSION is not ${TAG}"; exit 1; }
+          V=$(grep -oP '^\s*\*\s*Version:\s*\K[0-9.]+' sbnz-plans.php)
+          C=$(grep -oP "'SBT_VERSION', '\K[0-9.]+" sbnz-plans.php)
+          [ "$V" = "$C" ] || { echo "Header Version $V and SBT_VERSION $C differ"; exit 1; }
+          echo "version=$V" >> "$GITHUB_OUTPUT"
+      - name: Skip if this version is already released
+        id: exists
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view "v${{ steps.v.outputs.version }}" >/dev/null 2>&1; then echo "skip=1" >> "$GITHUB_OUTPUT"; else echo "skip=0" >> "$GITHUB_OUTPUT"; fi
       - name: PHP syntax check
+        if: steps.exists.outputs.skip == '0'
         run: for f in sbnz-plans.php includes/*.php; do php -l "$f"; done
       - name: Build zip
+        if: steps.exists.outputs.skip == '0'
         run: |
           mkdir -p build/sbnz-plans
           cp -r sbnz-plans.php includes build/sbnz-plans/
           cd build && zip -qr ../sb-toolkit.zip sbnz-plans
       - name: Publish release
+        if: steps.exists.outputs.skip == '0'
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: v${{ steps.v.outputs.version }}
+          name: v${{ steps.v.outputs.version }}
+          target_commitish: ${{ github.sha }}
+          body_path: RELEASE_NOTES.md
           files: sb-toolkit.zip
-          generate_release_notes: false
-          body_path: ${{ github.workspace }}/RELEASE_NOTES.md
