@@ -61,9 +61,10 @@ add_shortcode( 'sb_products', function ( $atts = array() ) {
 			break;
 		}
 		$p = wc_get_product( $id );
-		// Only live, visible listings – never plan / subscription products or nameless leftovers.
+		// Only live, visible listings – never plan products (Plans category, incl. Box Swap Plan) or nameless leftovers.
+		// (Marketplace vendors' boxes are real subscription products, so we can't skip by product type.)
 		if ( ! $p || 'publish' !== $p->get_status() || ! $p->is_visible() || '' === trim( $p->get_name() )
-			|| in_array( $p->get_type(), array( 'subscription', 'variable-subscription' ), true ) ) {
+			|| ( $exclude && has_term( $exclude, 'product_cat', $id ) ) ) {
 			continue;
 		}
 		$url   = get_permalink( $id );
