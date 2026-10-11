@@ -1,2 +1,2 @@
-- Updates now work from a public GitHub repository with no token (nothing to renew).
-- "Enable auto-updates" link always shows for this plugin on the Plugins page.
+- New "Update now from GitHub" button (SB Toolkit → Updates): checks GitHub and installs the newest version in one click.
+- Notice with an Update now button on the Dashboard, Plugins and SB Toolkit pages when a new version is out.

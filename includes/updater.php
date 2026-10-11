@@ -198,6 +198,68 @@ add_action( 'upgrader_process_complete', function () {
 	delete_site_transient( 'sbt_gh_latest' );
 } );
 
+/* --- One-click "Update now": check GitHub and install the latest release ---- */
+
+add_action( 'admin_post_sbt_update_now', function () {
+	if ( ! current_user_can( 'update_plugins' ) || ! check_admin_referer( 'sbt_update_now' ) ) {
+		wp_die( 'Not allowed.' );
+	}
+	delete_site_transient( 'sbt_gh_latest' );
+	$rel = sbt_gh_latest( true );
+	if ( is_wp_error( $rel ) || ! empty( $rel['error'] ) || empty( $rel['asset'] ) ) {
+		$why = is_wp_error( $rel ) ? $rel->get_error_message() : ( ! empty( $rel['error'] ) ? $rel['error'] : 'The latest release has no zip yet – try again in a minute.' );
+		wp_safe_redirect( add_query_arg( array( 'page' => 'sb-toolkit', 'tab' => 'updates', 'sbt_err' => rawurlencode( $why ) ), admin_url( 'admin.php' ) ) );
+		exit;
+	}
+	if ( ! version_compare( $rel['version'], SBT_VERSION, '>' ) ) {
+		wp_safe_redirect( admin_url( 'admin.php?page=sb-toolkit&tab=updates&sbt_msg=current' ) );
+		exit;
+	}
+	// Make sure WordPress knows about the release, then run the normal plugin updater.
+	delete_site_transient( 'update_plugins' );
+	wp_update_plugins();
+	require_once ABSPATH . 'wp-admin/includes/class-wp-upgrader.php';
+	require_once ABSPATH . 'wp-admin/includes/plugin.php';
+	require_once ABSPATH . 'wp-admin/includes/file.php';
+	$file     = plugin_basename( SBT_FILE );
+	$skin     = new WP_Ajax_Upgrader_Skin();
+	$upgrader = new Plugin_Upgrader( $skin );
+	$result   = $upgrader->upgrade( $file );
+	if ( true === $result || ( is_array( $result ) && ! empty( $result ) ) ) {
+		if ( ! is_plugin_active( $file ) ) {
+			activate_plugin( $file );
+		}
+		wp_safe_redirect( admin_url( 'admin.php?page=sb-toolkit&tab=updates&sbt_msg=updated&sbt_v=' . rawurlencode( $rel['version'] ) ) );
+		exit;
+	}
+	$errors = $skin->get_errors();
+	$why    = is_wp_error( $result ) ? $result->get_error_message() : ( $errors->has_errors() ? $errors->get_error_message() : 'WordPress could not install the update (check file permissions).' );
+	wp_safe_redirect( add_query_arg( array( 'page' => 'sb-toolkit', 'tab' => 'updates', 'sbt_err' => rawurlencode( $why ) ), admin_url( 'admin.php' ) ) );
+	exit;
+} );
+
+/** Button HTML, used on the Updates tab and in the "update available" notice. */
+function sbt_update_button( $label = 'Update now from GitHub' ) {
+	return '<form method="post" action="' . esc_url( admin_url( 'admin-post.php' ) ) . '" style="display:inline">'
+		. '<input type="hidden" name="action" value="sbt_update_now">' . wp_nonce_field( 'sbt_update_now', '_wpnonce', true, false )
+		. '<button type="submit" class="button button-primary">' . esc_html( $label ) . '</button></form>';
+}
+
+/** Notice on SB Toolkit pages and the dashboard when a newer release exists. */
+add_action( 'admin_notices', function () {
+	if ( ! current_user_can( 'update_plugins' ) ) {
+		return;
+	}
+	$screen = get_current_screen();
+	if ( ! $screen || ! in_array( $screen->id, array( 'dashboard', 'toplevel_page_sb-toolkit', 'plugins' ), true ) || ( isset( $_GET['tab'] ) && 'updates' === $_GET['tab'] ) ) { // phpcs:ignore
+		return;
+	}
+	$rel = get_site_transient( 'sbt_gh_latest' );
+	if ( is_array( $rel ) && ! empty( $rel['asset'] ) && version_compare( $rel['version'], SBT_VERSION, '>' ) ) {
+		echo '<div class="notice notice-info"><p><strong>Subscription Box Toolkit v' . esc_html( $rel['version'] ) . '</strong> is ready (you have v' . esc_html( SBT_VERSION ) . '). ' . sbt_update_button( 'Update now' ) . '</p></div>'; // phpcs:ignore
+	}
+} );
+
 /* --- SB Toolkit → Updates: save token / check now ------------------------- */
 
 add_action( 'admin_post_sbt_updates', function () {
@@ -233,8 +295,14 @@ function sbt_tab_updates( $s ) {
 	$token = sbt_gh_token();
 	$file  = plugin_basename( SBT_FILE );
 	$auto  = in_array( $file, (array) get_site_option( 'auto_update_plugins', array() ), true );
-	if ( isset( $_GET['sbt_msg'] ) ) { // phpcs:ignore
-		echo '<div class="notice notice-success inline"><p>' . ( 'saved' === $_GET['sbt_msg'] ? 'Saved and checked GitHub.' : 'Checked GitHub.' ) . '</p></div>'; // phpcs:ignore
+	$msgs = array( 'saved' => 'Saved and checked GitHub.', 'checked' => 'Checked GitHub.', 'current' => 'Already on the latest version – nothing to install.' );
+	if ( isset( $_GET['sbt_msg'] ) && 'updated' === $_GET['sbt_msg'] ) { // phpcs:ignore
+		echo '<div class="notice notice-success inline"><p>Updated to v' . esc_html( sanitize_text_field( wp_unslash( $_GET['sbt_v'] ?? '' ) ) ) . '. Purge LiteSpeed and Cloudflare if the change is on the front end.</p></div>'; // phpcs:ignore
+	} elseif ( isset( $_GET['sbt_msg'] ) && isset( $msgs[ $_GET['sbt_msg'] ] ) ) { // phpcs:ignore
+		echo '<div class="notice notice-success inline"><p>' . esc_html( $msgs[ $_GET['sbt_msg'] ] ) . '</p></div>'; // phpcs:ignore
+	}
+	if ( isset( $_GET['sbt_err'] ) ) { // phpcs:ignore
+		echo '<div class="notice notice-error inline"><p>' . esc_html( sanitize_text_field( wp_unslash( $_GET['sbt_err'] ) ) ) . '</p></div>'; // phpcs:ignore
 	}
 	?>
 	<div class="sbt-card">
@@ -260,6 +328,7 @@ function sbt_tab_updates( $s ) {
 			</td></tr>
 			<tr><th>Auto-updates</th><td><?php echo $auto ? '<span class="sbt-ok">✓ On – new releases install by themselves (WordPress checks about twice a day)</span>' : '<span class="sbt-muted">Off – turn on with "Enable auto-updates" next to Subscription Box Toolkit on the <a href="' . esc_url( admin_url( 'plugins.php' ) ) . '">Plugins page</a></span>'; // phpcs:ignore ?></td></tr>
 		</table>
+		<p style="margin-top:12px"><?php echo sbt_update_button(); // phpcs:ignore ?> <span class="sbt-muted">Checks GitHub right now and installs the newest version if there is one. Safe to click any time.</span></p>
 		<?php if ( ! is_wp_error( $rel ) && ! empty( $rel['notes'] ) ) : ?>
 			<details><summary>What's in v<?php echo esc_html( $rel['version'] ); ?></summary><div style="white-space:pre-wrap;margin-top:6px"><?php echo esc_html( $rel['notes'] ); ?></div></details>
 		<?php endif; ?>
