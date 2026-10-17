@@ -1,2 +1,2 @@
-- Content Views can be removed: once it's switched off, the [pt_view …] shortcodes in box listings show that box's own review posts (posts mentioning the box name, up to 10) using the toolkit's lightweight grid. No listing edits needed.
-- New: [sb_posts search="this"] (posts about the current box) and [sb_posts search="Treat Crate"].
+- Box review lists on listings now match the old Content Views look: thumbnail left, blue title, short excerpt and a "Read Our Review" button. Also available as [sb_posts layout="list"].
+- Content Views can be removed: the [pt_view …] shortcodes in box listings keep working, showing that box's own review posts. No listing edits needed.

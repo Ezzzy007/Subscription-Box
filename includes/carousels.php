@@ -86,7 +86,7 @@ add_shortcode( 'sb_products', function ( $atts = array() ) {
 } );
 
 add_shortcode( 'sb_posts', function ( $atts = array() ) {
-	$atts = shortcode_atts( array( 'limit' => 4, 'cat' => '', 'search' => '' ), $atts, 'sb_posts' );
+	$atts = shortcode_atts( array( 'limit' => 4, 'cat' => '', 'search' => '', 'layout' => 'grid', 'button' => 'Read Our Review', 'words' => 30 ), $atts, 'sb_posts' );
 	$args = array( 'post_type' => 'post', 'post_status' => 'publish', 'posts_per_page' => max( 1, min( 20, (int) $atts['limit'] ) ), 'no_found_rows' => true, 'ignore_sticky_posts' => true );
 	if ( '' !== trim( (string) $atts['cat'] ) ) {
 		$args['category_name'] = sanitize_title( $atts['cat'] );
@@ -105,6 +105,21 @@ add_shortcode( 'sb_posts', function ( $atts = array() ) {
 	$posts = get_posts( $args );
 	if ( ! $posts ) {
 		return '';
+	}
+	if ( 'list' === $atts['layout'] ) { // thumbnail left, title, excerpt, button (the old Content Views look)
+		$rows = array();
+		foreach ( $posts as $post ) {
+			$url     = get_permalink( $post );
+			$img     = get_the_post_thumbnail( $post, 'thumbnail', array( 'loading' => 'lazy' ) );
+			$text    = has_excerpt( $post ) ? $post->post_excerpt : strip_shortcodes( $post->post_content );
+			$excerpt = wp_trim_words( wp_strip_all_tags( $text ), max( 5, (int) $atts['words'] ), ' ...' );
+			$rows[]  = '<li class="sbl-row">' . ( $img ? '<a class="sbl-pic" href="' . esc_url( $url ) . '">' . $img . '</a>' : '' )
+				. '<div class="sbl-body"><a class="sbl-title" href="' . esc_url( $url ) . '">' . esc_html( wp_strip_all_tags( get_the_title( $post ) ) ) . '</a>'
+				. '<p class="sbl-excerpt">' . esc_html( $excerpt ) . '</p>'
+				. ( '' !== trim( (string) $atts['button'] ) ? '<a class="sbl-btn" href="' . esc_url( $url ) . '">' . esc_html( $atts['button'] ) . '</a>' : '' )
+				. '</div></li>';
+		}
+		return sb_strip_assets() . '<ul class="sbl-list">' . implode( '', $rows ) . '</ul>';
 	}
 	$cards = array();
 	foreach ( $posts as $post ) {
@@ -133,7 +148,7 @@ add_action( 'init', function () {
 	}
 	add_shortcode( 'pt_view', function () {
 		$name = sb_posts_current_box_name();
-		return $name ? do_shortcode( '[sb_posts search="this" limit="10"]' ) : do_shortcode( '[sb_posts limit="4"]' );
+		return $name ? do_shortcode( '[sb_posts search="this" limit="10" layout="list"]' ) : do_shortcode( '[sb_posts limit="4"]' );
 	} );
 }, 99 );
 
@@ -142,6 +157,11 @@ function sb_strip_assets() {
 	static $done = false;
 	if ( $done ) {
 		return '';
+	}
+	if ( ! did_action( 'wp_head' ) ) {
+		// Rendered early (e.g. SEO plugins building a meta description) – that copy is thrown away,
+		// so don't count it; the real page body still needs the styles.
+		return '<style>' . sb_strip_css() . '</style>';
 	}
 	$done = true;
 	add_action( 'wp_footer', 'sb_strip_js', 50 );
@@ -169,6 +189,14 @@ function sb_strip_css() {
 		. '.sbr-pic{display:block;aspect-ratio:1/1;overflow:hidden;border-radius:6px;margin-bottom:10px;background:#f6f6f6}'
 		. '.sbr-pic img{width:100%!important;max-width:100%;height:100%!important;object-fit:cover;display:block;margin:0;transition:transform .3s}.sbr-card a:hover img{transform:scale(1.04)}'
 		. '.sbr-title{display:block;font-weight:700;font-size:15px;line-height:1.35}'
+		. '.sbl-list{list-style:none;margin:1rem 0 2rem;padding:0}'
+		. '.sbl-row{display:flex;gap:20px;align-items:flex-start;margin:0 0 30px!important;padding:0}'
+		. '.sbl-pic{flex:0 0 142px;display:block}.sbl-pic img{width:142px;height:142px;object-fit:cover;display:block;margin:0}'
+		. '.sbl-body{flex:1;min-width:0}'
+		. '.sbl-title{display:block;font-size:1.15rem;font-weight:700;line-height:1.3;color:#2a7ae2;text-decoration:none!important;margin:0 0 8px}.sbl-title:hover{text-decoration:underline!important}'
+		. '.sbl-excerpt{margin:0 0 12px;line-height:1.6}'
+		. '.sbl-btn{display:inline-block;background:#00a8e8;color:#fff!important;padding:7px 13px;text-decoration:none!important;font-size:.95rem;line-height:1.3}.sbl-btn:hover{background:#0090c8}'
+		. '@media (max-width:600px){.sbl-row{gap:12px}.sbl-pic{flex-basis:96px}.sbl-pic img{width:96px;height:96px}.sbl-title{font-size:1rem}.sbl-excerpt{font-size:.92rem}}'
 		. '@media (max-width:680px){.sbr-grid{grid-auto-flow:column;grid-template-columns:none;grid-auto-columns:46%;overflow-x:auto;scroll-snap-type:x mandatory;gap:12px;padding-bottom:8px}.sbr-card{scroll-snap-align:start}}';
 }
 

@@ -53,7 +53,7 @@ add_shortcode( 'sb_categories', function ( $atts = array() ) {
 	static $font_done = false;
 	$font = '';
 	if ( ! $font_done ) {
-		$font_done = true;
+		$font_done = (bool) did_action( 'wp_head' ); // an early (thrown-away) render doesn't count
 		$font = '<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo+Black&display=swap"><style>' . sb_categories_css() . '</style>';
 	}
 	return $font . '<nav class="sbc-grid sbc-' . esc_attr( sanitize_title( $atts['look'] ) ) . '" aria-label="Shop by category">' . implode( '', $tiles ) . '</nav>';
