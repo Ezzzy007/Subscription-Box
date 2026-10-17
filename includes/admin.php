@@ -265,8 +265,8 @@ function sbt_tab_guide( $s ) {
 		array(
 			'title' => 'Latest posts / box reviews',
 			'tag'   => 'sb_posts',
-			'codes' => array( '[sb_posts limit="4"]', '[sb_posts limit="4" cat="category-slug"]' ),
-			'what'  => 'Latest blog posts with their featured image: a row on desktop, swipeable on phones. Add <code>cat</code> to show one post category only.',
+			'codes' => array( '[sb_posts limit="4"]', '[sb_posts limit="4" cat="category-slug"]', '[sb_posts search="this" limit="10"]' ),
+			'what'  => 'Latest blog posts with their featured image: a row on desktop, swipeable on phones. Add <code>cat</code> to show one post category only. <code>search="this"</code> on a box listing shows that box\'s own review posts. Old Content Views <code>[pt_view]</code> shortcodes do the same automatically once Content Views is switched off.',
 			'edit'  => 'No settings – change the numbers in the shortcode.',
 		),
 	);

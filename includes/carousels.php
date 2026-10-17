@@ -86,10 +86,21 @@ add_shortcode( 'sb_products', function ( $atts = array() ) {
 } );
 
 add_shortcode( 'sb_posts', function ( $atts = array() ) {
-	$atts = shortcode_atts( array( 'limit' => 4, 'cat' => '' ), $atts, 'sb_posts' );
+	$atts = shortcode_atts( array( 'limit' => 4, 'cat' => '', 'search' => '' ), $atts, 'sb_posts' );
 	$args = array( 'post_type' => 'post', 'post_status' => 'publish', 'posts_per_page' => max( 1, min( 20, (int) $atts['limit'] ) ), 'no_found_rows' => true, 'ignore_sticky_posts' => true );
 	if ( '' !== trim( (string) $atts['cat'] ) ) {
 		$args['category_name'] = sanitize_title( $atts['cat'] );
+	}
+	$search = trim( (string) $atts['search'] );
+	if ( 'this' === $search ) { // the box this page is about
+		$search = sb_posts_current_box_name();
+		if ( '' === $search ) {
+			return '';
+		}
+	}
+	if ( '' !== $search ) {
+		$args['s']        = html_entity_decode( wp_strip_all_tags( $search ), ENT_QUOTES );
+		$args['sentence'] = true; // the whole name as a phrase, e.g. "Treat Crate"
 	}
 	$posts = get_posts( $args );
 	if ( ! $posts ) {
@@ -103,6 +114,28 @@ add_shortcode( 'sb_posts', function ( $atts = array() ) {
 	}
 	return sb_strip_assets() . '<ul class="sbr-grid" style="--sbr-cols:' . min( 4, count( $cards ) ) . '">' . implode( '', $cards ) . '</ul>';
 } );
+
+/** Name of the product the current page is about ('' if not a product page). */
+function sb_posts_current_box_name() {
+	global $product;
+	$p = ( $product instanceof WC_Product ) ? $product : ( is_singular( 'product' ) && function_exists( 'wc_get_product' ) ? wc_get_product( get_queried_object_id() ) : null );
+	return $p ? trim( $p->get_name() ) : '';
+}
+
+/**
+ * Stand-in for Content Views' [pt_view id="…"] once that plugin is switched off. Every box listing used a view
+ * that searched posts for the box's own name (limit 10), so on a product page this shows that box's review
+ * posts; anywhere else it shows the latest posts. Lets Content Views be removed without editing 53 listings.
+ */
+add_action( 'init', function () {
+	if ( shortcode_exists( 'pt_view' ) ) {
+		return; // Content Views is still active – leave its shortcode alone
+	}
+	add_shortcode( 'pt_view', function () {
+		$name = sb_posts_current_box_name();
+		return $name ? do_shortcode( '[sb_posts search="this" limit="10"]' ) : do_shortcode( '[sb_posts limit="4"]' );
+	} );
+}, 99 );
 
 /** CSS once per page (inline) and a tiny script in the footer. No jQuery, no carousel library. */
 function sb_strip_assets() {

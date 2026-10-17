@@ -1,1 +1,2 @@
-- Discontinued listings that only had admin categories (e.g. old Slider/Extreme boxes) now suggest Popular boxes instead of nothing. Click Refresh on those listings to pick suggestions.
+- Content Views can be removed: once it's switched off, the [pt_view …] shortcodes in box listings show that box's own review posts (posts mentioning the box name, up to 10) using the toolkit's lightweight grid. No listing edits needed.
+- New: [sb_posts search="this"] (posts about the current box) and [sb_posts search="Treat Crate"].
