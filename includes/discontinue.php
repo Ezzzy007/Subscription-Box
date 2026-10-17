@@ -103,7 +103,13 @@ function sbt_disc_pick_upsells( $product_id, $n = 3 ) {
 	$ignore = sbt_disc_ignored_cats();
 	$cats   = array_diff( array_map( 'intval', wp_get_post_terms( $product_id, 'product_cat', array( 'fields' => 'ids' ) ) ), $ignore );
 	if ( ! $cats ) {
-		return array();
+		// Listing only had admin categories (tier / Slider) – fall back to Popular boxes so it still suggests something.
+		$pop = get_term_by( 'slug', sanitize_title( (string) sbt_get( 'popular_cat' ) ), 'product_cat' );
+		if ( ! $pop ) {
+			return array();
+		}
+		$cats = array( (int) $pop->term_id );
+		$ignore = array_diff( $ignore, $cats );
 	}
 	// Most specific first: deeper categories, then their parents as a fallback.
 	$depth = function ( $id ) {

@@ -1,1 +1,1 @@
-- Fix: carousels show marketplace vendors' boxes again (they're subscription products). Plan products are still never shown – they're skipped by their Plans category instead.
+- Discontinued listings that only had admin categories (e.g. old Slider/Extreme boxes) now suggest Popular boxes instead of nothing. Click Refresh on those listings to pick suggestions.
