@@ -201,12 +201,15 @@ add_action( 'sbt_fx_daily', function () {
 	}
 } );
 
-/* Front end: "$45.56 AUD" for overseas boxes so it's clear which currency the big price is in. */
+/* Front end: "$45.56 AUD". Replaces the child theme's tag-based snippet, which put "GBP" after AUD amounts. */
+add_action( 'init', function () {
+	remove_filter( 'woocommerce_get_price_html', 'themeprefix_custom_price_message' );
+} );
 add_filter( 'woocommerce_get_price_html', function ( $html, $product ) {
 	if ( is_admin() && ! wp_doing_ajax() ) {
 		return $html;
 	}
-	if ( $html && $product->get_meta( '_sbt_cur' ) && false === strpos( $html, sbt_fx_base() ) ) {
+	if ( $html && in_array( $product->get_type(), sbt_fx_types(), true ) && false === strpos( $html, 'sbt-fx-code' ) ) {
 		$html .= ' <span class="sbt-fx-code">' . esc_html( sbt_fx_base() ) . '</span>';
 	}
 	return $html;

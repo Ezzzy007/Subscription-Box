@@ -118,7 +118,7 @@ function sbt_sanitize( $input ) {
 
 /** Module switches shown on each tab. */
 function sbt_tab_modules( $tab ) {
-	$map = array( 'listings' => array( 'listings' ), 'tweaks' => array( 'price_guard', 'products_tidy' ), 'disc' => array( 'discontinue' ), 'fx' => array( 'fx' ) );
+	$map = array( 'listings' => array( 'listings' ), 'tweaks' => array( 'price_guard', 'products_tidy', 'fields' ), 'disc' => array( 'discontinue' ), 'fx' => array( 'fx' ) );
 	return isset( $map[ $tab ] ) ? $map[ $tab ] : array();
 }
 
@@ -447,12 +447,29 @@ function sbt_tab_tweaks( $s ) {
 	?>
 	<div class="sbt-card">
 		<?php sbt_module_box( 'price_guard', 'Currency per Product price guard', 'Stops Currency per Product Pro crashing the cart and product pages when a price is blank (e.g. a subscription with no sale price). Only does anything if that plugin is active.', $s ); ?>
+		<?php sbt_module_box( 'fields', 'Product fields (replaces Advanced Custom Fields)', 'Shows the <strong>Subtitle</strong> on shop cards and the <strong>Before price</strong> and <strong>Shop Price</strong> lines on product pages, instead of the child theme snippets that needed ACF. Once ACF is deactivated, Subtitle and Before price boxes appear under the product name when editing. Same data as before – nothing to move.' . ( function_exists( 'acf_get_field_groups' ) ? sbt_acf_report() : '' ), $s ); ?>
 		<?php sbt_module_box( 'products_tidy', 'Tidy Products list', 'Products → All Products: removes the SKU, GTIN, Tags, Badge, Synced to Meta catalog, Yoast SEO and Product brands columns, gives Name more room and stops the WooCommerce "please rate us" footer covering the table. Screen Options still controls the rest.', $s ); ?>
 		<?php if ( function_exists( 'sbt_drop_labels' ) ) : ?>
 			<p class="sbt-bad">sb-site-tweaks.php is still in wp-content/mu-plugins, so these are running from that file instead. Delete it in FileZilla.</p>
 		<?php endif; ?>
 	</div>
 	<?php
+}
+
+/** Lists ACF field groups, so it's clear whether anything besides these three fields still uses ACF. */
+function sbt_acf_report() {
+	$known  = array( 'subtitle', 'intprice', 'before_price' );
+	$extra  = array();
+	foreach ( (array) acf_get_field_groups() as $g ) {
+		foreach ( (array) acf_get_fields( $g ) as $f ) {
+			if ( ! in_array( $f['name'], $known, true ) ) {
+				$extra[] = $g['title'] . ' → ' . ( $f['label'] ? $f['label'] : $f['name'] );
+			}
+		}
+	}
+	return $extra
+		? '<br><span class="sbt-bad">ACF is still used for: ' . esc_html( implode( ', ', $extra ) ) . ' – keep ACF until those are sorted.</span>'
+		: '<br><span class="sbt-ok">ACF is only used for Subtitle, Shop Price and Before price, so it can be deactivated and deleted.</span>';
 }
 
 function sbt_tab_fx( $s ) {
