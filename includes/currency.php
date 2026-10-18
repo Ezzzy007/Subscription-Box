@@ -389,7 +389,7 @@ add_action( 'admin_post_sbt_fx', function () {
 		}
 		$last = sbt_fx_recalc_run( $after, 15 );
 		if ( $last ) {
-			wp_safe_redirect( wp_nonce_url( admin_url( 'admin-post.php?action=sbt_fx&do=' . $do . '&after=' . $last ), 'sbt_fx_' . $do ) );
+			wp_safe_redirect( add_query_arg( '_wpnonce', wp_create_nonce( 'sbt_fx_' . $do ), admin_url( 'admin-post.php?action=sbt_fx&do=' . $do . '&after=' . $last ) ) ); // not wp_nonce_url: that HTML-escapes the & and breaks the redirect
 			exit;
 		}
 		wc_delete_product_transients();

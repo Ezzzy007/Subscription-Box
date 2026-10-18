@@ -656,7 +656,7 @@ add_action( 'admin_post_sbt_disc_paste', function () {
 	}
 	if ( $q['ids'] ) {
 		set_transient( $key, $q, HOUR_IN_SECONDS );
-		wp_safe_redirect( wp_nonce_url( admin_url( 'admin-post.php?action=sbt_disc_paste' ), 'sbt_disc_paste_next' ) );
+		wp_safe_redirect( add_query_arg( '_wpnonce', wp_create_nonce( 'sbt_disc_paste_next' ), admin_url( 'admin-post.php?action=sbt_disc_paste' ) ) ); // not wp_nonce_url: that HTML-escapes the & and breaks the redirect
 		exit;
 	}
 	delete_transient( $key );
