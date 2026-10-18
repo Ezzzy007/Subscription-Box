@@ -50,8 +50,9 @@ function sbt_defaults() {
 		'disc_message'      => 'This box is no longer available.',
 		'disc_link_text'    => 'See similar boxes',
 		'disc_on_plan_end'  => 'draft',
+		'fx_overrides'      => '',
 		'gh_repo'           => 'Ezzzy007/Subscription-Box',
-		'modules'           => array( 'listings' => 1, 'price_guard' => 1, 'products_tidy' => 1, 'discontinue' => 1 ),
+		'modules'           => array( 'listings' => 1, 'price_guard' => 1, 'products_tidy' => 1, 'discontinue' => 1, 'fx' => 0 ),
 	);
 }
 

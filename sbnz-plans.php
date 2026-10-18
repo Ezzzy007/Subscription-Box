@@ -2,13 +2,13 @@
 /**
  * Plugin Name: Subscription Box Toolkit
  * Description: Everything custom for Subscription Boxes NZ and Subscription Box Australia in one plugin: listing plan and marketplace pricing tables, self-serve vendor listings with approval, category tiles, product carousels, latest-posts grid and small site fixes. Updates itself from GitHub. Guide and settings: wp-admin → SB Toolkit.
- * Version: 2.5.3
+ * Version: 2.6.0
  * Requires Plugins: woocommerce
  */
 
 defined( 'ABSPATH' ) || exit;
 
-define( 'SBT_VERSION', '2.5.3' );
+define( 'SBT_VERSION', '2.6.0' );
 define( 'SBT_FILE', __FILE__ );
 define( 'SBT_DIR', plugin_dir_path( __FILE__ ) . 'includes/' );
 
@@ -29,6 +29,9 @@ if ( sbt_module_on( 'listings' ) && ! function_exists( 'sbl_plans' ) ) {
 if ( sbt_module_on( 'discontinue' ) ) {
 	require SBT_DIR . 'discontinue.php';
 }
+
+// Overseas prices (replaces Currency per Product). Hooks only run once switched on in SB Toolkit → Currency.
+require SBT_DIR . 'currency.php';
 
 // Site tweaks – skipped while the old sb-site-tweaks.php must-use file is still there.
 if ( ! function_exists( 'sbt_drop_labels' ) ) {

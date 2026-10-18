@@ -11,6 +11,7 @@ function sbt_tabs() {
 		'carousel' => 'Carousels',
 		'listings' => 'Vendor listings',
 		'disc'     => 'Discontinued',
+		'fx'       => 'Currency',
 		'tweaks'   => 'Site tweaks',
 		'updates'  => 'Updates',
 	);
@@ -26,6 +27,7 @@ function sbt_tab_keys( $tab ) {
 		'listings' => array( 'listing_limits', 'listing_button', 'listing_max_mb', 'modules' ),
 		'tweaks'   => array( 'modules' ),
 		'disc'     => array( 'disc_upsells', 'disc_message', 'disc_link_text', 'disc_on_plan_end', 'modules' ),
+		'fx'       => array( 'fx_overrides', 'modules' ),
 	);
 	return isset( $map[ $tab ] ) ? $map[ $tab ] : array();
 }
@@ -103,7 +105,7 @@ function sbt_sanitize( $input ) {
 				);
 			}
 			$saved[ $k ] = $clean;
-		} elseif ( in_array( $k, array( 'plans_footer', 'mkt_footer', 'cats_items', 'exclude_cats' ), true ) ) {
+		} elseif ( in_array( $k, array( 'plans_footer', 'mkt_footer', 'cats_items', 'exclude_cats', 'fx_overrides' ), true ) ) {
 			$saved[ $k ] = $area( $v );
 		} elseif ( 'cats_look' === $k ) {
 			$saved[ $k ] = in_array( $v, array( 'nz', 'au' ), true ) ? $v : 'nz';
@@ -116,7 +118,7 @@ function sbt_sanitize( $input ) {
 
 /** Module switches shown on each tab. */
 function sbt_tab_modules( $tab ) {
-	$map = array( 'listings' => array( 'listings' ), 'tweaks' => array( 'price_guard', 'products_tidy' ), 'disc' => array( 'discontinue' ) );
+	$map = array( 'listings' => array( 'listings' ), 'tweaks' => array( 'price_guard', 'products_tidy' ), 'disc' => array( 'discontinue' ), 'fx' => array( 'fx' ) );
 	return isset( $map[ $tab ] ) ? $map[ $tab ] : array();
 }
 
@@ -195,6 +197,9 @@ function sbt_admin_page() {
 			echo '<p class="submit">';
 			submit_button( 'Save changes', 'primary', 'submit', false );
 			echo ' <label class="sbt-reset"><input type="checkbox" name="sbt_settings[_reset]" value="1"> Reset this tab to the original settings</label></p></form>';
+			if ( 'fx' === $tab ) {
+				sbt_fx_status_box();
+			}
 			if ( 'disc' === $tab && function_exists( 'sbt_disc_paste_box' ) ) {
 				sbt_disc_paste_box();
 			}
@@ -446,6 +451,65 @@ function sbt_tab_tweaks( $s ) {
 		<?php if ( function_exists( 'sbt_drop_labels' ) ) : ?>
 			<p class="sbt-bad">sb-site-tweaks.php is still in wp-content/mu-plugins, so these are running from that file instead. Delete it in FileZilla.</p>
 		<?php endif; ?>
+	</div>
+	<?php
+}
+
+function sbt_tab_fx( $s ) {
+	?>
+	<div class="sbt-card">
+		<?php sbt_module_box( 'fx', 'Overseas prices on', 'For boxes sold in another currency. Type their own price in the product\'s <strong>Shop Price</strong> box (e.g. <code>Shop Price: £24.99 GBP</code>) and the normal price fills itself in ' . esc_html( sbt_fx_base() ) . ' using today\'s exchange rate. Rates update once a day and every overseas box is re-priced. The page shows the ' . esc_html( sbt_fx_base() ) . ' price with "' . esc_html( sbt_fx_base() ) . '" after it, plus the Shop Price line. Replaces Currency per Product and External Products Currency – use <strong>Switch over</strong> below rather than ticking this by hand.', $s ); ?>
+	</div>
+	<div class="sbt-card">
+		<p><label><strong>Fixed rates</strong> (optional – one per line, e.g. <code>GBP = 0.52</code> meaning 1 <?php echo esc_html( sbt_fx_base() ); ?> = 0.52 GBP). Leave empty to use the daily rates.</label></p>
+		<textarea name="sbt_settings[fx_overrides]" rows="3" style="width:100%;max-width:420px;font-family:monospace"><?php echo esc_textarea( $s['fx_overrides'] ); ?></textarea>
+	</div>
+	<?php
+}
+
+function sbt_fx_status_box() {
+	if ( ! get_option( 'sbt_fx' ) ) {
+		sbt_fx_fetch();
+	}
+	$fx    = get_option( 'sbt_fx', array() );
+	$rates = sbt_fx_rates();
+	$msg   = isset( $_GET['sbt_msg'] ) ? sanitize_key( $_GET['sbt_msg'] ) : '';
+	$msgs  = array( 'rates' => 'Rates updated.', 'rates_fail' => 'Couldn\'t reach the rates service: ' . get_option( 'sbt_fx_error' ), 'done' => 'Done – every overseas box has been re-priced.' );
+	if ( isset( $msgs[ $msg ] ) ) {
+		echo '<div class="notice ' . ( 'rates_fail' === $msg ? 'notice-error' : 'notice-success' ) . '"><p>' . esc_html( $msgs[ $msg ] ) . '</p></div>';
+	}
+	$rows = sbt_fx_overview();
+	$used = array_unique( wp_list_pluck( $rows, 'cur' ) );
+	$old  = sbt_fx_old_plugins();
+	$on   = sbt_module_on( 'fx' );
+	$url  = function ( $do ) { return wp_nonce_url( admin_url( 'admin-post.php?action=sbt_fx&do=' . $do ), 'sbt_fx_' . $do ); };
+	?>
+	<div class="sbt-card">
+		<h2 style="margin-top:0">Exchange rates</h2>
+		<p><?php echo ! empty( $fx['updated'] ) ? 'Last updated ' . esc_html( human_time_diff( $fx['updated'] ) ) . ' ago.' : '<span class="sbt-bad">Not downloaded yet.</span>'; ?>
+			<a class="button" href="<?php echo esc_url( $url( 'rates' ) ); ?>">Update rates now</a></p>
+		<table class="widefat striped" style="max-width:420px"><thead><tr><th>Currency</th><th>1 <?php echo esc_html( sbt_fx_base() ); ?> =</th><th>1 unit = <?php echo esc_html( sbt_fx_base() ); ?></th></tr></thead><tbody>
+		<?php foreach ( $used as $c ) : ?>
+			<tr><td><?php echo esc_html( $c ); ?></td><td><?php echo isset( $rates[ $c ] ) ? esc_html( round( $rates[ $c ], 4 ) ) : '<span class="sbt-bad">missing</span>'; ?></td><td><?php echo isset( $rates[ $c ] ) ? esc_html( number_format( 1 / $rates[ $c ], 4 ) ) : ''; ?></td></tr>
+		<?php endforeach; ?>
+		</tbody></table>
+	</div>
+	<div class="sbt-card">
+		<h2 style="margin-top:0"><?php echo $on ? 'Overseas boxes' : 'Switch over'; ?></h2>
+		<?php if ( ! $on ) : ?>
+			<p>This will <?php echo $old ? 'deactivate <strong>' . esc_html( implode( '</strong> and <strong>', $old ) ) . '</strong>, ' : ''; ?>turn this on and re-price the <?php echo count( $rows ); ?> overseas boxes below in <?php echo esc_html( sbt_fx_base() ); ?>. Their Shop Price lines are kept (and tidied).</p>
+			<p><a class="button button-primary" href="<?php echo esc_url( $url( 'switch' ) ); ?>" onclick="return confirm('Switch over to the toolkit for overseas prices?')">Switch over now</a></p>
+		<?php else : ?>
+			<?php if ( $old ) : ?><p class="sbt-bad">Still active: <?php echo esc_html( implode( ', ', $old ) ); ?> – deactivate it, or it may convert prices a second time.</p><?php endif; ?>
+			<p><a class="button" href="<?php echo esc_url( $url( 'recalc' ) ); ?>">Re-price all now</a> <span class="sbt-muted">Happens by itself every day after the rates update.</span></p>
+		<?php endif; ?>
+		<table class="widefat striped"><thead><tr><th>Box</th><th>Shop Price</th><th>Price now</th><th><?php echo $on ? 'Today' : 'After switch'; ?></th></tr></thead><tbody>
+		<?php foreach ( $rows as $r ) : ?>
+			<tr><td><a href="<?php echo esc_url( get_edit_post_link( $r['id'] ) ); ?>"><?php echo esc_html( $r['name'] ); ?></a><?php echo 'publish' !== $r['status'] ? ' <span class="sbt-muted">(' . esc_html( $r['status'] ) . ')</span>' : ''; ?></td>
+			<td><?php echo esc_html( $r['shop'] ); ?></td><td><?php echo esc_html( $r['now'] ); ?></td>
+			<td><?php echo null === $r['new'] ? '<span class="sbt-bad">no rate</span>' : esc_html( number_format( $r['new'], 2 ) . ' ' . sbt_fx_base() ); ?></td></tr>
+		<?php endforeach; ?>
+		</tbody></table>
 	</div>
 	<?php
 }
