@@ -212,26 +212,82 @@ add_filter( 'woocommerce_get_price_html', function ( $html, $product ) {
 	return $html;
 }, 99, 2 );
 
-/* Product edit screen: explain where the price came from. */
+/* Product edit screen: Overseas price + Currency, right under the normal price. */
+function sbt_fx_choices() {
+	$list = array( sbt_fx_base(), 'USD', 'GBP', 'EUR', 'NZD', 'CAD', 'JPY', 'KRW', 'SGD', 'HKD' );
+	return array_values( array_unique( $list ) );
+}
+
 add_action( 'woocommerce_product_options_pricing', function () {
 	global $product_object;
 	if ( ! $product_object ) {
 		return;
 	}
-	$cur = $product_object->get_meta( '_sbt_cur' );
-	echo '<p class="form-field" style="color:#646970">';
-	if ( $cur ) {
+	$base = sbt_fx_base();
+	$cur  = $product_object->get_meta( '_sbt_cur' );
+	$amt  = $product_object->get_meta( '_sbt_cur_price' );
+	$cur  = $cur ? $cur : $base;
+	$opts = array();
+	foreach ( sbt_fx_choices() as $c ) {
+		$opts[ $c ] = $c === $base ? $c . ' – Australian box (just use the price above)' : $c;
+	}
+	if ( ! isset( $opts[ $cur ] ) ) {
+		$opts[ $cur ] = $cur;
+	}
+	echo '<div class="sbt-fx-fields" style="border-top:1px solid #eee;margin-top:6px;padding-top:4px">';
+	woocommerce_wp_select( array( 'id' => '_sbt_cur_in', 'label' => 'Box currency', 'value' => $cur, 'options' => $opts ) );
+	woocommerce_wp_text_input( array( 'id' => '_sbt_cur_price_in', 'label' => 'Overseas price', 'value' => $cur === $base ? '' : $amt, 'data_type' => 'price', 'placeholder' => 'e.g. 24.99', 'description' => 'For overseas boxes: type their own price and pick the currency. The price above and the Shop Price line fill themselves when you click Update.', 'desc_tip' => false ) );
+	if ( $cur !== $base && $amt ) {
 		$rates = sbt_fx_rates();
-		$amt   = (float) $product_object->get_meta( '_sbt_cur_price' );
-		if ( ! empty( $rates[ $cur ] ) ) {
-			echo 'Worked out automatically from the <strong>Shop Price</strong> box: ' . esc_html( sbt_fx_label( $amt, $cur ) ) . ' at 1 ' . esc_html( sbt_fx_base() ) . ' = ' . esc_html( round( $rates[ $cur ], 4 ) . ' ' . $cur ) . '. Updated daily. Change the Shop Price box, not this.';
-		} else {
-			echo '<span style="color:#d63638">No exchange rate for ' . esc_html( $cur ) . ' yet – SB Toolkit → Currency → Update rates now.</span>';
+		echo '<p class="form-field" style="color:#646970;margin-top:-6px">';
+		echo ! empty( $rates[ $cur ] )
+			? esc_html( sbt_fx_label( (float) $amt, $cur ) ) . ' = ' . esc_html( number_format( (float) $amt / $rates[ $cur ], 2 ) . ' ' . $base ) . ' today. Re-checked every day.'
+			: '<span style="color:#d63638">No exchange rate for ' . esc_html( $cur ) . ' yet – SB Toolkit → Currency → Update rates now.</span>';
+		echo '</p>';
+	}
+	echo '</div>';
+	?>
+	<script>jQuery(function($){var t=function(){var aud=$('#_sbt_cur_in').val()==='<?php echo esc_js( $base ); ?>';$('._sbt_cur_price_in_field').toggle(!aud);$('#_regular_price').prop('readonly',!aud).css('background',aud?'':'#f0f0f1');};$('#_sbt_cur_in').on('change',t);t();});</script>
+	<?php
+} );
+
+/** Turn the two fields into the Shop Price line on save. */
+function sbt_fx_from_post() {
+	if ( ! isset( $_POST['_sbt_cur_in'] ) ) { // phpcs:ignore WordPress.Security.NonceVerification -- WooCommerce checks the nonce
+		return null;
+	}
+	$cur = strtoupper( sanitize_text_field( wp_unslash( $_POST['_sbt_cur_in'] ) ) ); // phpcs:ignore
+	$amt = isset( $_POST['_sbt_cur_price_in'] ) ? (float) wc_format_decimal( wp_unslash( $_POST['_sbt_cur_price_in'] ) ) : 0; // phpcs:ignore
+	if ( $cur === sbt_fx_base() || $amt <= 0 || ! preg_match( '/^[A-Z]{3}$/', $cur ) ) {
+		return '';
+	}
+	return sbt_fx_label( $amt, $cur );
+}
+
+add_action( 'woocommerce_admin_process_product_object', function ( $product ) {
+	$label = sbt_fx_from_post();
+	if ( null === $label ) {
+		return;
+	}
+	if ( '' === $label ) {
+		$product->delete_meta_data( SBT_FX_META ); // Australian box: the price typed above stands
+		foreach ( array( '_alg_wc_cpp_currency', '_wcj_currency_per_product_currency' ) as $k ) {
+			$product->delete_meta_data( $k );
 		}
 	} else {
-		echo 'Overseas box? Put its own price in the <strong>Shop Price</strong> box (e.g. <code>Shop Price: £24.99 GBP</code>) and this price fills itself in ' . esc_html( sbt_fx_base() ) . ' when you click Update.';
+		$product->update_meta_data( SBT_FX_META, $label );
 	}
-	echo '</p>';
+} );
+
+/* ACF saves its own copy of the Shop Price box after WooCommerce – make it save ours instead, and lock the box. */
+add_filter( 'acf/update_value/name=' . SBT_FX_META, function ( $value ) {
+	$label = sbt_fx_from_post();
+	return null === $label ? $value : $label;
+} );
+add_filter( 'acf/prepare_field/name=' . SBT_FX_META, function ( $field ) {
+	$field['readonly']     = 1;
+	$field['instructions'] = 'Filled in automatically from "Overseas price" in Product data → General.';
+	return $field;
 } );
 
 endif; // module on

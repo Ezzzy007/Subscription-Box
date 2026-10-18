@@ -458,7 +458,7 @@ function sbt_tab_tweaks( $s ) {
 function sbt_tab_fx( $s ) {
 	?>
 	<div class="sbt-card">
-		<?php sbt_module_box( 'fx', 'Overseas prices on', 'For boxes sold in another currency. Type their own price in the product\'s <strong>Shop Price</strong> box (e.g. <code>Shop Price: £24.99 GBP</code>) and the normal price fills itself in ' . esc_html( sbt_fx_base() ) . ' using today\'s exchange rate. Rates update once a day and every overseas box is re-priced. The page shows the ' . esc_html( sbt_fx_base() ) . ' price with "' . esc_html( sbt_fx_base() ) . '" after it, plus the Shop Price line. Replaces Currency per Product and External Products Currency – use <strong>Switch over</strong> below rather than ticking this by hand.', $s ); ?>
+		<?php sbt_module_box( 'fx', 'Overseas prices on', 'For boxes sold in another currency. On the product, pick the <strong>Box currency</strong> and type the <strong>Overseas price</strong> (Product data → General) and the normal price fills itself in ' . esc_html( sbt_fx_base() ) . ' using today\'s exchange rate. Rates update once a day and every overseas box is re-priced. The page shows the ' . esc_html( sbt_fx_base() ) . ' price with "' . esc_html( sbt_fx_base() ) . '" after it, plus the Shop Price line. Replaces Currency per Product and External Products Currency – use <strong>Switch over</strong> below rather than ticking this by hand.', $s ); ?>
 	</div>
 	<div class="sbt-card">
 		<p><label><strong>Fixed rates</strong> (optional – one per line, e.g. <code>GBP = 0.52</code> meaning 1 <?php echo esc_html( sbt_fx_base() ); ?> = 0.52 GBP). Leave empty to use the daily rates.</label></p>
