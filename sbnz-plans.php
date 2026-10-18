@@ -2,13 +2,13 @@
 /**
  * Plugin Name: Subscription Box Toolkit
  * Description: Everything custom for Subscription Boxes NZ and Subscription Box Australia in one plugin: listing plan and marketplace pricing tables, self-serve vendor listings with approval, category tiles, product carousels, latest-posts grid and small site fixes. Updates itself from GitHub. Guide and settings: wp-admin → SB Toolkit.
- * Version: 2.7.1
+ * Version: 2.7.2
  * Requires Plugins: woocommerce
  */
 
 defined( 'ABSPATH' ) || exit;
 
-define( 'SBT_VERSION', '2.7.1' );
+define( 'SBT_VERSION', '2.7.2' );
 define( 'SBT_FILE', __FILE__ );
 define( 'SBT_DIR', plugin_dir_path( __FILE__ ) . 'includes/' );
 

@@ -33,7 +33,7 @@ function sbt_tab_keys( $tab ) {
 }
 
 add_action( 'admin_menu', function () {
-	add_menu_page( 'Subscription Box Toolkit', 'SB Toolkit', 'manage_options', 'sb-toolkit', 'sbt_admin_page', 'dashicons-archive', 56 );
+	add_menu_page( 'Subscription Box Toolkit', 'SB Toolkit', 'manage_options', 'sb-toolkit', 'sbt_admin_page', 'dashicons-archive', 1 );
 } );
 
 add_filter( 'plugin_action_links_' . plugin_basename( SBT_FILE ), function ( $links ) {
