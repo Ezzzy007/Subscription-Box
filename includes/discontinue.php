@@ -101,8 +101,7 @@ add_action( 'wp', function () {
 		$sim = sbt_disc_similar_ids( $product, 4 );
 		$msg = trim( (string) sbt_get( 'disc_message' ) );
 		echo '<div class="sbt-disc-note">';
-		echo '<span class="sbt-disc-pill">No longer available</span>';
-		echo '<p class="sbt-disc-msg">' . esc_html( '' !== $msg ? $msg : 'This box is no longer available.' ) . '</p>';
+		echo '<p class="sbt-disc-msg"><strong>' . esc_html( '' !== $msg ? $msg : 'This box is no longer available.' ) . '</strong>' . ( $sim ? '<br><span>We\'ve picked some similar boxes you might like.</span>' : '' ) . '</p>';
 		if ( $sim ) {
 			echo '<a class="sbt-disc-btn" href="#sbt-similar">' . esc_html( sbt_get( 'disc_link_text' ) ) . ' &darr;</a>';
 		}
@@ -131,13 +130,15 @@ add_action( 'wp', function () {
 
 	add_action( 'wp_head', function () {
 		echo '<style>
-.sbt-disc-note{margin:18px 0;padding:18px 20px;background:#f6f7f9;border:1px solid #e3e6ea;border-radius:10px}
-.sbt-disc-pill{display:inline-block;font-size:12px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:#6b7280;background:#e9ecef;border-radius:999px;padding:3px 10px;margin-bottom:8px}
-.sbt-disc-msg{margin:0 0 12px;font-size:16px;color:#1f2937}
-.sbt-disc-btn{display:inline-block;background:#00a8e8;color:#fff!important;font-weight:600;padding:10px 18px;border-radius:6px;text-decoration:none!important}
+.sbt-disc-note{margin:14px 0 6px;padding:16px 18px;background:#f6f7f9;border:1px solid #e3e6ea;border-radius:10px}
+.sbt-disc-msg{margin:0 0 12px;font-size:16px;line-height:1.45;color:#1f2937}
+.sbt-disc-msg span{font-size:14px;color:#6b7280}
+.sbt-disc-btn{display:inline-block;background:#00a8e8;color:#fff!important;font-weight:600;font-size:15px;padding:9px 16px;border-radius:6px;text-decoration:none!important}
 .sbt-disc-btn:hover{background:#0090c8}
-.sbt-similar{clear:both;margin:40px 0 10px;padding-top:30px;border-top:1px solid #eee}
-.sbt-similar h2{text-align:center;margin-bottom:24px}
+.single-product .summary .first-payment-date{display:none}
+.sbt-similar{clear:both;margin:0;padding-top:24px;border-top:1px solid #eee;scroll-margin-top:90px}
+.sbt-similar h2{text-align:center;margin:0 0 18px}
+@media (max-width:767px){.sbt-disc-note{margin:10px 0 0}.sbt-similar{padding-top:18px}.sbt-similar h2{font-size:22px}}
 .single-product .summary .cg-intprice{display:none}
 .single-product .summary .woocommerce-product-attributes{display:none}
 </style>';
@@ -302,7 +303,14 @@ function sbt_disc_unlink( $html ) {
 
 add_filter( 'woocommerce_short_description', function ( $html ) {
 	global $product;
-	return ( is_product() && sbt_is_discontinued( $product ) ) ? sbt_disc_unlink( $html ) : $html;
+	if ( ! ( is_product() && sbt_is_discontinued( $product ) ) ) {
+		return $html;
+	}
+	$html = sbt_disc_unlink( $html );
+	// Social icons are gone, so drop the divider and blank lines that sat above them.
+	$html = preg_replace( '#<hr\b[^>]*>#i', '', $html );
+	$html = preg_replace( '#<p>(?:\s|&nbsp;|\xc2\xa0|<br\s*/?>)*</p>#i', '', $html );
+	return trim( $html );
 }, 99 );
 
 add_filter( 'the_content', function ( $html ) {
