@@ -138,39 +138,90 @@ function sbt_fx_apply( $product ) {
 	return true;
 }
 
-function sbt_fx_recalc_batch( $offset = 0, $limit = 50 ) {
-	$ids = get_posts( array(
-		'post_type'      => 'product',
-		'post_status'    => array( 'publish', 'draft', 'pending', 'private' ),
-		'posts_per_page' => $limit,
-		'offset'         => $offset,
-		'orderby'        => 'ID',
-		'order'          => 'ASC',
-		'fields'         => 'ids',
-		'meta_query'     => array(
-			'relation' => 'OR',
-			array( 'key' => SBT_FX_META, 'value' => '', 'compare' => '!=' ),
-			array( 'key' => '_alg_wc_cpp_currency', 'value' => sbt_fx_base(), 'compare' => '!=' ),
-			array( 'key' => '_wcj_currency_per_product_currency', 'value' => sbt_fx_base(), 'compare' => '!=' ),
-		),
-	) );
-	foreach ( $ids as $id ) {
-		$p = wc_get_product( $id );
-		if ( $p && in_array( $p->get_type(), sbt_fx_types(), true ) ) {
-			sbt_fx_apply( $p );
-			$p->save();
+/**
+ * Fast re-price straight in the database – no full product save, so Facebook sync, cache purges etc. don't run
+ * for every box (that's what overloaded the server). Returns true if the price changed.
+ */
+function sbt_fx_reprice_id( $id ) {
+	global $wpdb;
+	$type = WC_Product_Factory::get_product_type( $id );
+	if ( ! in_array( $type, sbt_fx_types(), true ) ) {
+		return false;
+	}
+	$base = sbt_fx_base();
+	$src  = sbt_fx_parse( get_post_meta( $id, SBT_FX_META, true ) );
+	if ( $src && $src[1] === $base ) {
+		$src = null;
+	}
+	if ( ! $src ) {
+		foreach ( array( '_alg_wc_cpp_currency', '_wcj_currency_per_product_currency' ) as $k ) {
+			$c  = strtoupper( (string) get_post_meta( $id, $k, true ) );
+			$rp = (float) get_post_meta( $id, '_regular_price', true );
+			if ( $c && $c !== $base && $rp > 0 ) {
+				$src = array( $rp, $c );
+				break;
+			}
 		}
 	}
-	return count( $ids );
+	if ( ! $src ) {
+		return false;
+	}
+	list( $amt, $cur ) = $src;
+	update_post_meta( $id, '_sbt_cur', $cur );
+	update_post_meta( $id, '_sbt_cur_price', $amt );
+	update_post_meta( $id, SBT_FX_META, sbt_fx_label( $amt, $cur ) );
+	foreach ( array( '_alg_wc_cpp_currency', '_wcj_currency_per_product_currency' ) as $k ) {
+		if ( get_post_meta( $id, $k, true ) ) {
+			update_post_meta( $id, $k, $base );
+		}
+	}
+	$rates = sbt_fx_rates();
+	if ( empty( $rates[ $cur ] ) ) {
+		update_post_meta( $id, '_sbt_cur_norate', 1 );
+		return false;
+	}
+	delete_post_meta( $id, '_sbt_cur_norate' );
+	$local = (string) round( $amt / $rates[ $cur ], 2 );
+	if ( $local === (string) get_post_meta( $id, '_regular_price', true ) ) {
+		return false;
+	}
+	update_post_meta( $id, '_regular_price', $local );
+	if ( '' === (string) get_post_meta( $id, '_sale_price', true ) ) {
+		update_post_meta( $id, '_price', $local );
+		$wpdb->update( $wpdb->prefix . 'wc_product_meta_lookup', array( 'min_price' => $local, 'max_price' => $local ), array( 'product_id' => $id ) ); // keeps price sorting/filters right
+	}
+	clean_post_cache( $id );
+	return true;
+}
+
+/** IDs of products that have an overseas price (or old-plugin currency), after $after_id. */
+function sbt_fx_ids( $after_id = 0, $limit = 500 ) {
+	global $wpdb;
+	$base = esc_sql( sbt_fx_base() );
+	return array_map( 'intval', $wpdb->get_col( $wpdb->prepare( "SELECT DISTINCT p.ID FROM {$wpdb->posts} p JOIN {$wpdb->postmeta} m ON m.post_id=p.ID WHERE p.post_type='product' AND p.post_status IN ('publish','draft','pending','private') AND p.ID > %d AND ( (m.meta_key='intprice' AND m.meta_value<>'') OR (m.meta_key IN ('_alg_wc_cpp_currency','_wcj_currency_per_product_currency') AND m.meta_value NOT IN ('', '{$base}')) ) ORDER BY p.ID LIMIT %d", $after_id, $limit ) ) ); // phpcs:ignore
+}
+
+/** Re-price from $after_id onwards for up to $seconds. Returns the last ID done, or 0 when finished. */
+function sbt_fx_recalc_run( $after_id = 0, $seconds = 15 ) {
+	$start = microtime( true );
+	foreach ( sbt_fx_ids( $after_id ) as $id ) {
+		sbt_fx_reprice_id( $id );
+		if ( microtime( true ) - $start > $seconds ) {
+			return $id;
+		}
+	}
+	return 0;
 }
 
 function sbt_fx_recalc_all() {
-	$o = 0;
+	$last = 0;
 	do {
-		$n  = sbt_fx_recalc_batch( $o, 100 );
-		$o += $n;
-	} while ( 100 === $n );
-	return $o;
+		$last = sbt_fx_recalc_run( $last, 60 );
+	} while ( $last );
+	if ( function_exists( 'wc_delete_product_transients' ) ) {
+		wc_delete_product_transients();
+	}
+	do_action( 'litespeed_purge_all' );
 }
 
 /* Daily: fetch rates, then re-price. */
@@ -195,9 +246,6 @@ add_action( 'init', function () {
 add_action( 'sbt_fx_daily', function () {
 	if ( sbt_fx_fetch() ) {
 		sbt_fx_recalc_all();
-		if ( function_exists( 'wc_delete_product_transients' ) ) {
-			wc_delete_product_transients();
-		}
 	}
 } );
 
@@ -324,27 +372,28 @@ add_action( 'admin_post_sbt_fx', function () {
 		exit;
 	}
 	if ( 'switch' === $do || 'recalc' === $do ) {
-		$off = isset( $_GET['off'] ) ? absint( $_GET['off'] ) : 0;
-		if ( 0 === $off ) {
+		$after = isset( $_GET['after'] ) ? absint( $_GET['after'] ) : 0;
+		if ( 0 === $after ) {
 			if ( 'switch' === $do ) {
 				$old = array_keys( sbt_fx_old_plugins() );
 				if ( $old ) {
 					deactivate_plugins( $old );
 				}
-				$s                     = get_option( 'sbt_settings', array() );
-				$s['modules']['fx']    = 1;
+				$s                  = get_option( 'sbt_settings', array() );
+				$s['modules']['fx'] = 1;
 				update_option( 'sbt_settings', $s );
 			}
 			if ( ! get_option( 'sbt_fx' ) ) {
 				sbt_fx_fetch();
 			}
 		}
-		$n = sbt_fx_recalc_batch( $off, 40 );
-		if ( 40 === $n ) {
-			wp_safe_redirect( wp_nonce_url( admin_url( 'admin-post.php?action=sbt_fx&do=' . $do . '&off=' . ( $off + 40 ) ), 'sbt_fx_' . $do ) );
+		$last = sbt_fx_recalc_run( $after, 15 );
+		if ( $last ) {
+			wp_safe_redirect( wp_nonce_url( admin_url( 'admin-post.php?action=sbt_fx&do=' . $do . '&after=' . $last ), 'sbt_fx_' . $do ) );
 			exit;
 		}
 		wc_delete_product_transients();
+		do_action( 'litespeed_purge_all' );
 		wp_safe_redirect( add_query_arg( 'sbt_msg', 'done', $back ) );
 		exit;
 	}
