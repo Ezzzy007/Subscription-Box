@@ -539,7 +539,6 @@ function sbt_tab_disc( $s ) {
 	<div class="sbt-card">
 		<p><label class="inline">Similar boxes to suggest</label> <input type="number" min="1" max="8" style="width:70px" name="sbt_settings[disc_upsells]" value="<?php echo esc_attr( $s['disc_upsells'] ); ?>"></p>
 		<p><label class="inline">Message on the page</label> <input type="text" class="regular-text" name="sbt_settings[disc_message]" value="<?php echo esc_attr( $s['disc_message'] ); ?>"></p>
-		<p><label class="inline">Link to the suggestions</label> <input type="text" class="regular-text" name="sbt_settings[disc_link_text]" value="<?php echo esc_attr( $s['disc_link_text'] ); ?>"></p>
 		<p><label class="inline">When a listing plan ends</label>
 			<select name="sbt_settings[disc_on_plan_end]">
 				<option value="draft" <?php selected( $s['disc_on_plan_end'], 'draft' ); ?>>Hide it (draft + Cancelled category)</option>

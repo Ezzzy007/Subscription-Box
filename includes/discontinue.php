@@ -101,10 +101,7 @@ add_action( 'wp', function () {
 		$sim = sbt_disc_similar_ids( $product, 4 );
 		$msg = trim( (string) sbt_get( 'disc_message' ) );
 		echo '<div class="sbt-disc-note">';
-		echo '<p class="sbt-disc-msg"><strong>' . esc_html( '' !== $msg ? $msg : 'This box is no longer available.' ) . '</strong>' . ( $sim ? '<br><span>We\'ve picked some similar boxes you might like.</span>' : '' ) . '</p>';
-		if ( $sim ) {
-			echo '<a class="sbt-disc-btn" href="#sbt-similar">' . esc_html( sbt_get( 'disc_link_text' ) ) . ' &darr;</a>';
-		}
+		echo '<p class="sbt-disc-msg"><strong>' . esc_html( '' !== $msg ? $msg : 'This box is no longer available.' ) . '</strong></p>';
 		echo '</div>';
 	}, 25 );
 
@@ -131,10 +128,8 @@ add_action( 'wp', function () {
 	add_action( 'wp_head', function () {
 		echo '<style>
 .sbt-disc-note{margin:14px 0 6px;padding:16px 18px;background:#f6f7f9;border:1px solid #e3e6ea;border-radius:10px}
-.sbt-disc-msg{margin:0 0 12px;font-size:16px;line-height:1.45;color:#1f2937}
+.sbt-disc-msg{margin:0;font-size:16px;line-height:1.45;color:#1f2937}
 .sbt-disc-msg span{font-size:14px;color:#6b7280}
-.sbt-disc-btn{display:inline-block;background:#00a8e8;color:#fff!important;font-weight:600;font-size:15px;padding:9px 16px;border-radius:6px;text-decoration:none!important}
-.sbt-disc-btn:hover{background:#0090c8}
 .single-product .summary .first-payment-date{display:none}
 .sbt-similar{clear:both;margin:0;padding:24px 0 28px;border-top:1px solid #eee;scroll-margin-top:90px}
 .sbt-similar h2{text-align:center;margin:0 0 18px}
