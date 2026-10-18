@@ -356,6 +356,36 @@ add_action( 'admin_init', function () {
 	update_option( 'sbt_old_url_backfill', 1, false );
 } );
 
+/** The Z-Admin → Discontinued category (created on first use). */
+function sbt_disc_cat_id() {
+	$t = get_term_by( 'slug', 'discontinued', 'product_cat' );
+	if ( $t ) {
+		return (int) $t->term_id;
+	}
+	$parent = 0;
+	foreach ( array( 'zadmin', 'z-admin' ) as $slug ) {
+		$pt = get_term_by( 'slug', $slug, 'product_cat' );
+		if ( $pt ) {
+			$parent = (int) $pt->term_id;
+			break;
+		}
+	}
+	$r = wp_insert_term( 'Discontinued', 'product_cat', array( 'slug' => 'discontinued', 'parent' => $parent ) );
+	return is_wp_error( $r ) ? 0 : (int) $r['term_id'];
+}
+
+/** Old categories that meant "closed" – swapped for Discontinued. */
+function sbt_disc_legacy_cat_ids() {
+	$ids = array();
+	foreach ( array( 'currently-closed', 'currently-closed-boxes' ) as $slug ) {
+		$t = get_term_by( 'slug', $slug, 'product_cat' );
+		if ( $t ) {
+			$ids[] = (int) $t->term_id;
+		}
+	}
+	return $ids;
+}
+
 /** Returns array( 'ok' => bool, 'msg' => string, 'upsells' => int[] ). */
 function sbt_discontinue( $product_id, $note = '' ) {
 	$product = wc_get_product( $product_id );
@@ -396,6 +426,12 @@ function sbt_discontinue( $product_id, $note = '' ) {
 	if ( $upsells ) {
 		$product->set_upsell_ids( $upsells );
 	}
+	$cats = array_diff( array_map( 'intval', $product->get_category_ids() ), sbt_disc_legacy_cat_ids() );
+	$dc   = sbt_disc_cat_id();
+	if ( $dc ) {
+		$cats[] = $dc;
+	}
+	$product->set_category_ids( array_values( array_unique( $cats ) ) );
 	$product->update_meta_data( '_sbt_disc_date', current_time( 'mysql' ) );
 	if ( $note ) {
 		$product->update_meta_data( '_sbt_disc_note', $note );
@@ -436,6 +472,10 @@ function sbt_undiscontinue( $product_id ) {
 		foreach ( $prev['badge_meta'] as $k => $v ) {
 			$product->update_meta_data( $k, $v );
 		}
+	}
+	$dc = sbt_disc_cat_id();
+	if ( $dc ) {
+		$product->set_category_ids( array_values( array_diff( array_map( 'intval', $product->get_category_ids() ), array( $dc ) ) ) );
 	}
 	$product->delete_meta_data( '_sbt_disc_prev' );
 	$product->delete_meta_data( '_sbt_disc_date' );

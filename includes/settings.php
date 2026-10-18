@@ -36,7 +36,7 @@ function sbt_defaults() {
 		'cats_look'         => $au ? 'au' : 'nz',
 		'cats_all_url'      => $au ? '/directory/' : '',
 		'popular_cat'       => $au ? 'popular-subscription-boxes' : 'popular-boxes',
-		'exclude_cats'      => 'cancelled, plans',
+		'exclude_cats'      => 'cancelled, plans, discontinued',
 		'listing_limits'    => array(
 			'mini'    => array( 'images' => 1, 'cats' => 1, 'order' => 6 ),
 			'basic'   => array( 'images' => 3, 'cats' => 2, 'order' => 5 ),
