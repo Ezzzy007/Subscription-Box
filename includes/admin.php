@@ -195,6 +195,9 @@ function sbt_admin_page() {
 			echo '<p class="submit">';
 			submit_button( 'Save changes', 'primary', 'submit', false );
 			echo ' <label class="sbt-reset"><input type="checkbox" name="sbt_settings[_reset]" value="1"> Reset this tab to the original settings</label></p></form>';
+			if ( 'disc' === $tab && function_exists( 'sbt_disc_paste_box' ) ) {
+				sbt_disc_paste_box();
+			}
 		}
 		?>
 	</div>

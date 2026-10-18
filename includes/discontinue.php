@@ -484,3 +484,81 @@ add_filter( 'handle_bulk_actions-edit-product', function ( $redirect, $action, $
 	set_transient( 'sbt_disc_msg_' . get_current_user_id(), array( 'ok' => true, 'msg' => $n . ' listing' . ( 1 === $n ? '' : 's' ) . ' discontinued with suggestions.' ), 60 );
 	return $redirect;
 }, 10, 3 );
+
+/* --- Paste a list of IDs ----------------------------------------------------- */
+
+/** Box under the Discontinued tab: paste product IDs (any separators) and discontinue or restore them all. */
+function sbt_disc_paste_box() {
+	$res = get_transient( 'sbt_disc_paste_res_' . get_current_user_id() );
+	if ( $res ) {
+		delete_transient( 'sbt_disc_paste_res_' . get_current_user_id() );
+		echo '<div class="notice notice-success"><p><strong>' . esc_html( $res['label'] ) . ':</strong> ' . (int) $res['done'] . ' done';
+		if ( $res['skipped'] ) {
+			echo ', skipped (not found or nothing to restore): ' . esc_html( implode( ', ', $res['skipped'] ) );
+		}
+		echo '.</p></div>';
+	}
+	?>
+	<div class="sbt-card">
+		<h2 style="margin-top:0">Paste a list of IDs</h2>
+		<p class="sbt-muted">Paste product IDs from a spreadsheet: one per line, or separated by commas or spaces. They're done 20 at a time, so a long list just takes a few seconds longer.</p>
+		<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
+			<input type="hidden" name="action" value="sbt_disc_paste">
+			<?php wp_nonce_field( 'sbt_disc_paste' ); ?>
+			<textarea name="ids" rows="6" style="width:100%;max-width:620px;font-family:monospace" placeholder="24&#10;41&#10;137"></textarea>
+			<p>
+				<label><input type="radio" name="do" value="discontinue" checked> Discontinue + upsells</label> &nbsp;
+				<label><input type="radio" name="do" value="restore"> Restore listing</label>
+			</p>
+			<p><button class="button button-primary" onclick="return confirm('Run this on every ID in the list?')">Run</button></p>
+		</form>
+	</div>
+	<?php
+}
+
+add_action( 'admin_post_sbt_disc_paste', function () {
+	if ( ! current_user_can( 'edit_products' ) ) {
+		wp_die( 'Not allowed.' );
+	}
+	$uid = get_current_user_id();
+	$key = 'sbt_disc_paste_q_' . $uid;
+	if ( isset( $_POST['ids'] ) ) {
+		check_admin_referer( 'sbt_disc_paste' );
+		$ids = array_values( array_unique( array_filter( array_map( 'absint', preg_split( '/[^0-9]+/', wp_unslash( $_POST['ids'] ) ) ) ) ) );
+		$do  = ( isset( $_POST['do'] ) && 'restore' === $_POST['do'] ) ? 'restore' : 'discontinue';
+		$q   = array( 'ids' => $ids, 'do' => $do, 'done' => 0, 'skipped' => array() );
+	} else {
+		check_admin_referer( 'sbt_disc_paste_next' );
+		$q = get_transient( $key );
+		if ( ! is_array( $q ) ) {
+			wp_safe_redirect( admin_url( 'admin.php?page=sb-toolkit&tab=disc' ) );
+			exit;
+		}
+	}
+	$batch = array_splice( $q['ids'], 0, 20 );
+	foreach ( $batch as $id ) {
+		if ( 'product' !== get_post_type( $id ) ) {
+			$q['skipped'][] = $id;
+			continue;
+		}
+		$r = 'restore' === $q['do'] ? sbt_undiscontinue( $id ) : sbt_discontinue( $id );
+		if ( empty( $r['ok'] ) ) {
+			$q['skipped'][] = $id;
+		} else {
+			$q['done']++;
+		}
+	}
+	if ( $q['ids'] ) {
+		set_transient( $key, $q, HOUR_IN_SECONDS );
+		wp_safe_redirect( wp_nonce_url( admin_url( 'admin-post.php?action=sbt_disc_paste' ), 'sbt_disc_paste_next' ) );
+		exit;
+	}
+	delete_transient( $key );
+	set_transient( 'sbt_disc_paste_res_' . $uid, array(
+		'label'   => 'restore' === $q['do'] ? 'Restored' : 'Discontinued',
+		'done'    => $q['done'],
+		'skipped' => $q['skipped'],
+	), 10 * MINUTE_IN_SECONDS );
+	wp_safe_redirect( admin_url( 'admin.php?page=sb-toolkit&tab=disc' ) );
+	exit;
+} );
