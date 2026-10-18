@@ -113,7 +113,7 @@ add_action( 'wp', function () {
 		if ( ! $sim ) {
 			return;
 		}
-		echo '<section id="sbt-similar" class="sbt-similar">';
+		echo '<section id="sbt-similar" class="sbt-similar"><div class="sbt-similar-inner">';
 		echo '<h2>Similar boxes you might like</h2>';
 		echo '<ul class="products columns-' . count( $sim ) . '">';
 		global $post;
@@ -125,7 +125,7 @@ add_action( 'wp', function () {
 		}
 		$post = $keep; // phpcs:ignore WordPress.WP.GlobalVariablesOverride
 		wp_reset_postdata();
-		echo '</ul></section>';
+		echo '</ul></div></section>';
 	}, 5 );
 
 	add_action( 'wp_head', function () {
@@ -136,9 +136,11 @@ add_action( 'wp', function () {
 .sbt-disc-btn{display:inline-block;background:#00a8e8;color:#fff!important;font-weight:600;font-size:15px;padding:9px 16px;border-radius:6px;text-decoration:none!important}
 .sbt-disc-btn:hover{background:#0090c8}
 .single-product .summary .first-payment-date{display:none}
-.sbt-similar{clear:both;margin:0;padding-top:24px;border-top:1px solid #eee;scroll-margin-top:90px}
+.sbt-similar{clear:both;margin:0;padding:24px 0 28px;border-top:1px solid #eee;scroll-margin-top:90px}
 .sbt-similar h2{text-align:center;margin:0 0 18px}
-@media (max-width:767px){.sbt-disc-note{margin:10px 0 0}.sbt-similar{padding-top:18px}.sbt-similar h2{font-size:22px}}
+.sbt-similar-inner{max-width:1170px!important;margin:0 auto!important;padding:0 24px!important;box-sizing:border-box!important}
+.sbt-similar-inner ul.products{margin:0 -12px!important;width:auto!important}
+@media (max-width:767px){.sbt-disc-note{margin:10px 0 0}.single-product .summary{margin-bottom:0!important}.product-details-wrapper{padding-bottom:16px!important}.sbt-similar{padding-top:18px}.sbt-similar h2{font-size:22px}.sbt-similar-inner{padding:0 14px!important}.sbt-similar-inner ul.products{margin:0 -6px!important}}
 .single-product .summary .cg-intprice{display:none}
 .single-product .summary .woocommerce-product-attributes{display:none}
 </style>';
