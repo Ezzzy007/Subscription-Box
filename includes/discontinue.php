@@ -44,39 +44,105 @@ add_filter( 'woocommerce_get_availability_class', function ( $class, $product ) 
 	return sbt_is_discontinued( $product ) ? 'out-of-stock discontinued' : $class;
 }, 20, 2 );
 
-/** Message on the product page, above the upsells. */
-add_action( 'woocommerce_single_product_summary', function () {
-	global $product;
+/* --- Product page for a discontinued box ---------------------------------------
+ * No price, a clean notice with a button, and a full-width row of similar boxes (shop-card style)
+ * instead of the theme's squeezed upsells in the summary column. */
+
+/** Up to $n similar boxes: the saved upsells first, topped up with fresh picks. */
+function sbt_disc_similar_ids( $product, $n = 4 ) {
+	$ids = array_values( array_filter( array_map( 'intval', (array) $product->get_upsell_ids() ), function ( $id ) {
+		return 'publish' === get_post_status( $id );
+	} ) );
+	if ( count( $ids ) < $n && function_exists( 'sbt_disc_pick_upsells' ) ) {
+		$key  = 'sbt_disc_more_' . $product->get_id();
+		$more = get_transient( $key );
+		if ( false === $more ) {
+			$more = sbt_disc_pick_upsells( $product->get_id(), $n + 4 );
+			set_transient( $key, $more, DAY_IN_SECONDS );
+		}
+		foreach ( (array) $more as $id ) {
+			if ( count( $ids ) >= $n ) {
+				break;
+			}
+			if ( ! in_array( (int) $id, $ids, true ) && (int) $id !== $product->get_id() ) {
+				$ids[] = (int) $id;
+			}
+		}
+	}
+	return array_slice( $ids, 0, $n );
+}
+
+add_action( 'wp', function () {
+	if ( ! is_singular( 'product' ) ) {
+		return;
+	}
+	$product = wc_get_product( get_queried_object_id() );
 	if ( ! sbt_is_discontinued( $product ) ) {
 		return;
 	}
-	$msg = trim( (string) sbt_get( 'disc_message' ) );
-	if ( '' === $msg ) {
-		return;
-	}
-	$has_upsells = (bool) $product->get_upsell_ids();
-	echo '<div class="sbt-disc-note" style="margin:1em 0;padding:14px 16px;border-left:4px solid #d63638;background:#fff4f4;border-radius:4px">'
-		. '<strong style="display:block;margin-bottom:4px">' . esc_html( $msg ) . '</strong>'
-		. ( $has_upsells ? '<a href="#sbt-similar" style="font-weight:600">' . esc_html( sbt_get( 'disc_link_text' ) ) . ' ↓</a>' : '' )
-		. '</div>';
-}, 25 );
-
-/** Anchor for the "See similar boxes" link, placed just above wherever the theme shows upsells. */
-add_action( 'wp', function () {
-	$anchor = function () {
-		global $product;
-		if ( sbt_is_discontinued( $product ) ) {
-			echo '<span id="sbt-similar"></span>';
+	// The theme's upsells (in the summary column) – replaced by the row below.
+	foreach ( array( 'woocommerce_single_product_summary', 'woocommerce_after_single_product_summary' ) as $hook ) {
+		$pr = has_action( $hook, 'woocommerce_upsell_display' );
+		if ( false !== $pr ) {
+			remove_action( $hook, 'woocommerce_upsell_display', $pr );
 		}
-	};
-	$in_summary = has_action( 'woocommerce_single_product_summary', 'woocommerce_upsell_display' );
-	if ( false !== $in_summary ) {
-		add_action( 'woocommerce_single_product_summary', $anchor, max( 0, (int) $in_summary - 1 ) );
-	} else {
-		$after = has_action( 'woocommerce_after_single_product_summary', 'woocommerce_upsell_display' );
-		add_action( 'woocommerce_after_single_product_summary', $anchor, false !== $after ? max( 0, (int) $after - 1 ) : 14 );
 	}
-} );
+	remove_action( 'woocommerce_single_product_summary', 'woocommerce_template_single_price', 10 );
+	$rel = has_action( 'woocommerce_after_single_product_summary', 'woocommerce_output_related_products' );
+	if ( false !== $rel ) {
+		remove_action( 'woocommerce_after_single_product_summary', 'woocommerce_output_related_products', $rel ); // the similar row replaces it
+	}
+	add_filter( 'woocommerce_get_price_html', function ( $html, $p ) use ( $product ) {
+		return $p->get_id() === $product->get_id() ? '' : $html;
+	}, 100, 2 );
+	add_filter( 'sbt_show_shop_price_line', '__return_false' );
+
+	add_action( 'woocommerce_single_product_summary', function () use ( $product ) {
+		$sim = sbt_disc_similar_ids( $product, 4 );
+		$msg = trim( (string) sbt_get( 'disc_message' ) );
+		echo '<div class="sbt-disc-note">';
+		echo '<span class="sbt-disc-pill">No longer available</span>';
+		echo '<p class="sbt-disc-msg">' . esc_html( '' !== $msg ? $msg : 'This box is no longer available.' ) . '</p>';
+		if ( $sim ) {
+			echo '<a class="sbt-disc-btn" href="#sbt-similar">' . esc_html( sbt_get( 'disc_link_text' ) ) . ' &darr;</a>';
+		}
+		echo '</div>';
+	}, 25 );
+
+	add_action( 'woocommerce_after_single_product_summary', function () use ( $product ) {
+		$sim = sbt_disc_similar_ids( $product, 4 );
+		if ( ! $sim ) {
+			return;
+		}
+		echo '<section id="sbt-similar" class="sbt-similar">';
+		echo '<h2>Similar boxes you might like</h2>';
+		echo '<ul class="products columns-' . count( $sim ) . '">';
+		global $post;
+		$keep = $post;
+		foreach ( $sim as $id ) {
+			$post = get_post( $id ); // phpcs:ignore WordPress.WP.GlobalVariablesOverride
+			setup_postdata( $post );
+			wc_get_template_part( 'content', 'product' );
+		}
+		$post = $keep; // phpcs:ignore WordPress.WP.GlobalVariablesOverride
+		wp_reset_postdata();
+		echo '</ul></section>';
+	}, 5 );
+
+	add_action( 'wp_head', function () {
+		echo '<style>
+.sbt-disc-note{margin:18px 0;padding:18px 20px;background:#f6f7f9;border:1px solid #e3e6ea;border-radius:10px}
+.sbt-disc-pill{display:inline-block;font-size:12px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:#6b7280;background:#e9ecef;border-radius:999px;padding:3px 10px;margin-bottom:8px}
+.sbt-disc-msg{margin:0 0 12px;font-size:16px;color:#1f2937}
+.sbt-disc-btn{display:inline-block;background:#00a8e8;color:#fff!important;font-weight:600;padding:10px 18px;border-radius:6px;text-decoration:none!important}
+.sbt-disc-btn:hover{background:#0090c8}
+.sbt-similar{clear:both;margin:40px 0 10px;padding-top:30px;border-top:1px solid #eee}
+.sbt-similar h2{text-align:center;margin-bottom:24px}
+.single-product .summary .cg-intprice{display:none}
+.single-product .summary .woocommerce-product-attributes{display:none}
+</style>';
+	} );
+}, 20 );
 
 /* --- Picking similar boxes --------------------------------------------------- */
 

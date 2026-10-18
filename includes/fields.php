@@ -44,7 +44,7 @@ add_action( 'woocommerce_single_product_summary', function () {
 
 add_action( 'woocommerce_single_product_summary', function () {
 	$v = get_post_meta( get_the_ID(), 'intprice', true );
-	if ( '' !== (string) $v ) {
+	if ( '' !== (string) $v && apply_filters( 'sbt_show_shop_price_line', true ) ) {
 		echo '<div class="cg-intprice">' . esc_html( $v ) . '</div>';
 	}
 }, 12 );
