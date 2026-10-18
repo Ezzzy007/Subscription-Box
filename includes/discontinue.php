@@ -16,6 +16,10 @@ add_filter( 'woocommerce_product_stock_status_options', function ( $options ) {
 	return $options;
 } );
 
+if ( ! defined( 'SBT_OLD_URL_KEY' ) ) {
+	define( 'SBT_OLD_URL_KEY', 'sbt_old_url' );
+}
+
 function sbt_is_discontinued( $product ) {
 	if ( ! $product instanceof WC_Product ) {
 		// Early in a page the global $product can still be the slug/ID – look it up instead of crashing.
@@ -253,6 +257,39 @@ function sbt_disc_flush( $product_id ) {
 	wp_cache_delete( $product_id, 'post_meta' );
 }
 
+/**
+ * Keeps the vendor/affiliate link in an admin-only custom field (sbt_old_url) so it's never lost.
+ * Never printed on the front end; shows in the Discontinue box, Custom Fields and CSV exports.
+ */
+function sbt_disc_keep_url( $product ) {
+	if ( $product->get_meta( SBT_OLD_URL_KEY ) ) {
+		return;
+	}
+	$url = is_callable( array( $product, 'get_product_url' ) ) ? $product->get_product_url( 'edit' ) : '';
+	if ( ! $url ) {
+		$prev = $product->get_meta( '_sbt_disc_prev' );
+		$url  = is_array( $prev ) && ! empty( $prev['url'] ) ? $prev['url'] : '';
+	}
+	if ( $url ) {
+		update_post_meta( $product->get_id(), SBT_OLD_URL_KEY, esc_url_raw( $url ) );
+	}
+}
+
+// One-off: copy the link out for boxes discontinued before this field existed.
+add_action( 'admin_init', function () {
+	if ( get_option( 'sbt_old_url_backfill' ) ) {
+		return;
+	}
+	$ids = get_posts( array( 'post_type' => 'product', 'post_status' => 'any', 'numberposts' => -1, 'fields' => 'ids', 'meta_key' => '_sbt_disc_prev' ) );
+	foreach ( $ids as $id ) {
+		$product = wc_get_product( $id );
+		if ( $product ) {
+			sbt_disc_keep_url( $product );
+		}
+	}
+	update_option( 'sbt_old_url_backfill', 1, false );
+} );
+
 /** Returns array( 'ok' => bool, 'msg' => string, 'upsells' => int[] ). */
 function sbt_discontinue( $product_id, $note = '' ) {
 	$product = wc_get_product( $product_id );
@@ -273,6 +310,7 @@ function sbt_discontinue( $product_id, $note = '' ) {
 		) );
 		$product->save();
 	}
+	sbt_disc_keep_url( $product );
 	// External → simple, so there's no "Subscribe To Box" button linking to the vendor.
 	if ( 'external' === $product->get_type() ) {
 		wp_set_object_terms( $product_id, 'simple', 'product_type' );
@@ -364,6 +402,10 @@ function sbt_disc_box( $post ) {
 		echo '<p><strong style="color:#d63638">Discontinued</strong>' . ( $date ? ' on ' . esc_html( mysql2date( 'j M Y', $date ) ) : '' ) . '</p>';
 		if ( $product->get_meta( '_sbt_disc_note' ) ) {
 			echo '<p class="description">' . esc_html( $product->get_meta( '_sbt_disc_note' ) ) . '</p>';
+		}
+		$old = $product->get_meta( SBT_OLD_URL_KEY );
+		if ( $old ) {
+			echo '<p style="word-break:break-all"><strong>Old vendor link</strong> (admin only):<br><a href="' . esc_url( $old ) . '" target="_blank" rel="noopener noreferrer">' . esc_html( $old ) . '</a></p>';
 		}
 		$ups = $product->get_upsell_ids();
 		if ( $ups ) {
